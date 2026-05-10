@@ -51,8 +51,17 @@
 
         <!-- 词频结果区域：分词完成后显示 -->
         <div id="result-area" class="result-area" style="display:none;">
-            <h3>词频统计结果</h3>
+            <div class="result-header">
+                <h3>词频统计结果</h3>
+                <div class="select-controls">
+                    <button type="button" id="select-all-btn" class="btn-small">全选</button>
+                    <button type="button" id="deselect-all-btn" class="btn-small">取消全选</button>
+                </div>
+            </div>
+            <p class="result-hint">勾选不需要进入词云的词，然后点击"确认过滤"</p>
             <div id="word-freq-list" class="word-freq-list"></div>
+            <!-- 确认过滤按钮 -->
+            <button type="button" id="filter-btn" class="btn-filter">确认过滤</button>
         </div>
 
         <!-- 文件格式说明 -->
@@ -64,11 +73,12 @@
                 <li>文件大小限制为 16MB</li>
                 <li>上传的文件将保存到本地 uploads 文件夹</li>
                 <li>上传后点击"开始分词分析"查看词频统计</li>
+                <li>在词频列表中勾选不需要的词，点击"确认过滤"移除</li>
             </ul>
         </div>
     </div>
 
-    <!-- JavaScript：处理文件上传和分词交互 -->
+    <!-- JavaScript：处理文件上传、分词和过滤交互 -->
     <script>
         // 获取 DOM 元素引用
         var fileSelectZone = document.getElementById('file-select-zone');
@@ -85,9 +95,14 @@
         var processBtn = document.getElementById('process-btn');
         var resultArea = document.getElementById('result-area');
         var wordFreqList = document.getElementById('word-freq-list');
+        var selectAllBtn = document.getElementById('select-all-btn');
+        var deselectAllBtn = document.getElementById('deselect-all-btn');
+        var filterBtn = document.getElementById('filter-btn');
 
         // 记录当前已上传的文件名
         var currentFilename = '';
+        // 记录当前词频数据（用于过滤时发送给后端）
+        var currentWordFreq = {};
 
         // 点击选择区域 → 触发文件选择
         fileSelectZone.addEventListener('click', function() {
@@ -97,14 +112,11 @@
         // 监听文件选择事件
         fileInput.addEventListener('change', function() {
             if (fileInput.files.length > 0) {
-                // 选中文件：显示预览条，隐藏选择区域
                 previewName.textContent = fileInput.files[0].name;
                 filePreview.style.display = 'flex';
                 fileSelectZone.style.display = 'none';
-                // 启用上传按钮
                 uploadBtn.disabled = false;
             } else {
-                // 未选中：恢复初始状态
                 resetFileSelect();
             }
         });
@@ -132,7 +144,6 @@
                 return;
             }
 
-            // 禁用上传按钮，防止重复提交
             uploadBtn.disabled = true;
             uploadBtn.textContent = '上传中...';
 
@@ -143,21 +154,16 @@
             xhr.open('POST', '/upload_txt', true);
 
             xhr.onload = function() {
-                // 恢复上传按钮
                 uploadBtn.textContent = '上传文件';
 
                 if (xhr.status === 200) {
                     var response = JSON.parse(xhr.responseText);
                     if (response.status === 'success') {
                         showMessage(response.message, 'success');
-                        // 记录上传的文件名（服务器端的 UUID 文件名）
                         currentFilename = response.filename;
-                        // 显示分词处理区域，展示原始文件名
                         uploadedFilename.textContent = response.original_name || response.filename;
                         processArea.style.display = 'block';
-                        // 隐藏上一次的结果
                         resultArea.style.display = 'none';
-                        // 重置文件选择区域
                         resetFileSelect();
                     } else {
                         showMessage(response.message, 'error');
@@ -185,7 +191,6 @@
                 return;
             }
 
-            // 禁用按钮，防止重复点击
             processBtn.disabled = true;
             processBtn.textContent = '分析中...';
 
@@ -194,7 +199,6 @@
             xhr.setRequestHeader('Content-Type', 'application/json');
 
             xhr.onload = function() {
-                // 恢复按钮状态
                 processBtn.disabled = false;
                 processBtn.textContent = '开始分词分析';
 
@@ -202,7 +206,8 @@
                     var response = JSON.parse(xhr.responseText);
                     if (response.status === 'success') {
                         showMessage('分词分析完成！', 'success');
-                        // 渲染词频结果
+                        // 保存词频数据
+                        currentWordFreq = response.word_freq;
                         renderWordFreq(response.word_freq);
                     } else {
                         showMessage(response.message, 'error');
@@ -218,17 +223,86 @@
                 showMessage('网络错误，无法连接到服务器', 'error');
             };
 
-            // 发送 JSON 数据：文件名
             xhr.send(JSON.stringify({ filename: currentFilename }));
         });
 
+        // 全选按钮：勾选所有词
+        selectAllBtn.addEventListener('click', function() {
+            var checkboxes = wordFreqList.querySelectorAll('input[type="checkbox"]');
+            for (var i = 0; i < checkboxes.length; i++) {
+                checkboxes[i].checked = true;
+            }
+        });
+
+        // 取消全选按钮：取消勾选所有词
+        deselectAllBtn.addEventListener('click', function() {
+            var checkboxes = wordFreqList.querySelectorAll('input[type="checkbox"]');
+            for (var i = 0; i < checkboxes.length; i++) {
+                checkboxes[i].checked = false;
+            }
+        });
+
+        // 确认过滤按钮：收集勾选的词，发送给后端过滤
+        filterBtn.addEventListener('click', function() {
+            // 收集所有被勾选的词
+            var removeWords = [];
+            var checkboxes = wordFreqList.querySelectorAll('input[type="checkbox"]:checked');
+            for (var i = 0; i < checkboxes.length; i++) {
+                removeWords.push(checkboxes[i].value);
+            }
+
+            // 如果没有勾选任何词，提示用户
+            if (removeWords.length === 0) {
+                showMessage('请先勾选需要过滤的词', 'error');
+                return;
+            }
+
+            // 禁用按钮
+            filterBtn.disabled = true;
+            filterBtn.textContent = '过滤中...';
+
+            var xhr = new XMLHttpRequest();
+            xhr.open('POST', '/filter_words', true);
+            xhr.setRequestHeader('Content-Type', 'application/json');
+
+            xhr.onload = function() {
+                filterBtn.disabled = false;
+                filterBtn.textContent = '确认过滤';
+
+                if (xhr.status === 200) {
+                    var response = JSON.parse(xhr.responseText);
+                    if (response.status === 'success') {
+                        showMessage('过滤完成！已移除 ' + removeWords.length + ' 个词', 'success');
+                        // 更新词频数据并重新渲染
+                        currentWordFreq = response.filtered_word_freq;
+                        renderWordFreq(response.filtered_word_freq);
+                    } else {
+                        showMessage(response.message, 'error');
+                    }
+                } else {
+                    showMessage('服务器错误，请稍后重试', 'error');
+                }
+            };
+
+            xhr.onerror = function() {
+                filterBtn.disabled = false;
+                filterBtn.textContent = '确认过滤';
+                showMessage('网络错误，无法连接到服务器', 'error');
+            };
+
+            // 发送当前词频和要移除的词列表
+            xhr.send(JSON.stringify({
+                word_freq: currentWordFreq,
+                remove_words: removeWords
+            }));
+        });
+
         /**
-         * 渲染词频统计结果到页面。
+         * 渲染词频统计结果到页面（带 checkbox）。
          *
          * @param {Object} wordFreq - 词频字典，例如 {"数据": 20, "分析": 15}
          */
         function renderWordFreq(wordFreq) {
-            // 清空之前的结果
             wordFreqList.innerHTML = '';
 
             // 将字典转为数组并按频次降序排序
@@ -236,8 +310,15 @@
                 return b[1] - a[1];
             });
 
+            // 如果没有词了，显示提示
+            if (items.length === 0) {
+                wordFreqList.innerHTML = '<p class="empty-hint">所有词已被过滤</p>';
+                resultArea.style.display = 'block';
+                return;
+            }
+
             // 找到最大频次（用于计算条形宽度比例）
-            var maxFreq = items.length > 0 ? items[0][1] : 1;
+            var maxFreq = items[0][1];
 
             // 生成每个词的展示条
             for (var i = 0; i < items.length; i++) {
@@ -247,10 +328,18 @@
                 var item = document.createElement('div');
                 item.className = 'freq-item';
 
-                // 词语标签
-                var label = document.createElement('span');
+                // 复选框
+                var checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.className = 'freq-checkbox';
+                checkbox.value = word;
+                checkbox.id = 'cb-' + i;
+
+                // 词语标签（点击文字也能勾选）
+                var label = document.createElement('label');
                 label.className = 'freq-word';
                 label.textContent = word;
+                label.setAttribute('for', 'cb-' + i);
 
                 // 频次条形（宽度按比例计算）
                 var bar = document.createElement('div');
@@ -262,13 +351,13 @@
                 count.className = 'freq-count';
                 count.textContent = freq;
 
+                item.appendChild(checkbox);
                 item.appendChild(label);
                 item.appendChild(bar);
                 item.appendChild(count);
                 wordFreqList.appendChild(item);
             }
 
-            // 显示结果区域
             resultArea.style.display = 'block';
         }
 

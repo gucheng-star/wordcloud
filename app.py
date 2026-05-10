@@ -28,6 +28,14 @@
    返回: JSON
      成功: {"status": "success", "word_freq": {"数据": 20, "分析": 15}}
      失败: {"status": "error", "message": "错误原因"}
+
+4. 过滤词（用户自定义过滤）
+   方法: POST
+   路径: /filter_words
+   参数: word_freq（词频字典）, remove_words（要移除的词列表）
+   返回: JSON
+     成功: {"status": "success", "filtered_word_freq": {"分析": 15}}
+     失败: {"status": "error", "message": "错误原因"}
 """
 
 import os
@@ -35,6 +43,7 @@ import uuid
 from flask import Flask, render_template, request, jsonify
 from werkzeug.utils import secure_filename
 from utils.text_processor import process_file
+from utils.filter_processor import filter_word_freq
 
 # 创建 Flask 应用实例
 app = Flask(__name__)
@@ -215,6 +224,54 @@ def process_text():
         return jsonify({'status': 'error', 'message': '文件编码错误，请使用 UTF-8 编码的文本文件'})
     except Exception as e:
         return jsonify({'status': 'error', 'message': f'处理失败：{str(e)}'})
+
+
+@app.route('/filter_words', methods=['POST'])
+def filter_words():
+    """
+    过滤词接口：根据用户选择的词，从词频结果中移除这些词。
+
+    请求:
+        POST /filter_words
+        JSON 参数:
+            word_freq: 词频字典，例如 {"数据": 20, "分析": 15}
+            remove_words: 要移除的词列表，例如 ["数据"]
+
+    返回 JSON:
+        成功: {"status": "success", "filtered_word_freq": {"分析": 15}}
+        失败: {"status": "error", "message": "错误原因"}
+    """
+    # 获取请求中的 JSON 数据
+    data = request.get_json()
+
+    # 检查是否提供了必要参数
+    if not data:
+        return jsonify({'status': 'error', 'message': '请求体不能为空'})
+
+    if 'word_freq' not in data:
+        return jsonify({'status': 'error', 'message': '缺少 word_freq 参数'})
+
+    if 'remove_words' not in data:
+        return jsonify({'status': 'error', 'message': '缺少 remove_words 参数'})
+
+    word_freq = data['word_freq']
+    remove_words = data['remove_words']
+
+    # 类型校验：word_freq 必须是字典
+    if not isinstance(word_freq, dict):
+        return jsonify({'status': 'error', 'message': 'word_freq 必须是字典格式'})
+
+    # 类型校验：remove_words 必须是列表
+    if not isinstance(remove_words, list):
+        return jsonify({'status': 'error', 'message': 'remove_words 必须是列表格式'})
+
+    # 调用过滤模块
+    filtered = filter_word_freq(word_freq, remove_words)
+
+    return jsonify({
+        'status': 'success',
+        'filtered_word_freq': filtered
+    })
 
 
 if __name__ == '__main__':

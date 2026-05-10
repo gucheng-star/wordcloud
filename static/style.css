@@ -280,9 +280,42 @@ h1 {
     margin-bottom: 20px;
 }
 
-.result-area h3 {
+.result-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.result-header h3 {
     color: #2c3e50;
     font-size: 16px;
+    margin: 0;
+}
+
+.select-controls {
+    display: flex;
+    gap: 8px;
+}
+
+.btn-small {
+    padding: 4px 12px;
+    font-size: 12px;
+    background-color: #ecf0f1;
+    color: #2c3e50;
+    border: 1px solid #bdc3c7;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.btn-small:hover {
+    background-color: #d5dbdb;
+}
+
+.result-hint {
+    color: #95a5a6;
+    font-size: 13px;
     margin-bottom: 16px;
 }
 
@@ -297,6 +330,15 @@ h1 {
     margin-bottom: 8px;
 }
 
+.freq-checkbox {
+    width: 16px;
+    height: 16px;
+    margin-right: 10px;
+    cursor: pointer;
+    accent-color: #e74c3c;
+    flex-shrink: 0;
+}
+
 .freq-word {
     width: 80px;
     text-align: right;
@@ -304,6 +346,7 @@ h1 {
     font-size: 14px;
     color: #2c3e50;
     white-space: nowrap;
+    cursor: pointer;
 }
 
 .freq-bar {
@@ -322,4 +365,39 @@ h1 {
     font-size: 14px;
     color: #7f8c8d;
     font-weight: bold;
+}
+
+.empty-hint {
+    text-align: center;
+    color: #95a5a6;
+    padding: 20px 0;
+    font-size: 14px;
+}
+
+/* --- 确认过滤按钮 --- */
+.btn-filter {
+    display: block;
+    width: 100%;
+    padding: 12px 0;
+    margin-top: 16px;
+    background-color: #e67e22;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font-size: 16px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.btn-filter:hover {
+    background-color: #d35400;
+}
+
+.btn-filter:active {
+    background-color: #c0392b;
+}
+
+.btn-filter:disabled {
+    background-color: #95a5a6;
+    cursor: not-allowed;
 }
