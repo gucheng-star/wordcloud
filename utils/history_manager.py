@@ -14,13 +14,19 @@ history_manager.py - 历史记录管理模块
 """
 
 import os
+import sys
 import json
 import uuid
 from datetime import datetime
 
 
-# history.json 文件路径：项目根目录下的 data/history.json
-DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data')
+def _get_runtime_dir():
+    if getattr(sys, 'frozen', False):
+        return os.path.dirname(sys.executable)
+    return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+DATA_DIR = os.path.join(_get_runtime_dir(), 'data')
 HISTORY_FILE = os.path.join(DATA_DIR, 'history.json')
 
 

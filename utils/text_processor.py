@@ -12,12 +12,18 @@ text_processor.py - 中文文本处理模块
 """
 
 import os
+import sys
 import jieba
 from collections import Counter
 
 
-# 停用词文件路径：与 app.py 同级的 stopwords.txt
-STOPWORDS_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'stopwords.txt')
+def _get_data_path(filename):
+    if getattr(sys, 'frozen', False):
+        return os.path.join(sys._MEIPASS, filename)
+    return os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), filename)
+
+
+STOPWORDS_PATH = _get_data_path('stopwords.txt')
 
 
 def load_stopwords(filepath=STOPWORDS_PATH):

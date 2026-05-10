@@ -78,7 +78,10 @@
 """
 
 import os
+import sys
 import uuid
+import webbrowser
+import threading
 from flask import Flask, render_template, request, jsonify, send_from_directory
 from werkzeug.utils import secure_filename
 from utils.text_processor import process_file, process_text_string
@@ -88,18 +91,32 @@ from utils.color_manager import VALID_COLOR_MODES, VALID_GRADIENT_THEMES, is_val
 from utils.mask_processor import generate_mask, is_allowed_image, get_mask_preview_info, generate_grayscale_image, invert_grayscale_image, validate_threshold
 from utils.history_manager import save_history, load_history, delete_history, get_history_by_id, clear_all_history
 
-# 创建 Flask 应用实例
-app = Flask(__name__)
+def get_base_path():
+    if getattr(sys, 'frozen', False):
+        return os.path.dirname(sys.executable)
+    return os.path.dirname(os.path.abspath(__file__))
 
-# 配置上传文件夹路径
-UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
+
+def get_resource_path(relative_path):
+    if getattr(sys, 'frozen', False):
+        return os.path.join(sys._MEIPASS, relative_path)
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), relative_path)
+
+
+BASE_PATH = get_base_path()
+
+app = Flask(
+    __name__,
+    template_folder=get_resource_path('templates'),
+    static_folder=get_resource_path('static')
+)
+
+UPLOAD_FOLDER = os.path.join(BASE_PATH, 'uploads')
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
-# 配置词云输出文件夹路径
-OUTPUT_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'outputs')
+OUTPUT_FOLDER = os.path.join(BASE_PATH, 'outputs')
 app.config['OUTPUT_FOLDER'] = OUTPUT_FOLDER
 
-# 配置 mask 图片文件夹路径
 MASK_FOLDER = os.path.join(UPLOAD_FOLDER, 'masks')
 app.config['MASK_FOLDER'] = MASK_FOLDER
 
@@ -1017,6 +1034,12 @@ def clean_masks():
     })
 
 
+def open_browser():
+    webbrowser.open('http://127.0.0.1:3326')
+
+
 if __name__ == '__main__':
     debug = os.getenv('FLASK_DEBUG', 'False').lower() == 'true'
+    if not debug:
+        threading.Timer(1.5, open_browser).start()
     app.run(host='127.0.0.1', port=3326, debug=debug)
