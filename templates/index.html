@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>中文词云工具</title>
+    <!-- 引入外部样式表 -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <!-- 主容器 -->
+    <div class="container">
+        <!-- 页面标题 -->
+        <h1>中文词云工具</h1>
+        <p class="subtitle">上传一个中文文本文件，生成词云图</p>
+
+        <!-- 文件上传区域 -->
+        <div class="upload-area">
+            <!--
+                文件上传表单
+                操作流程：选择文件 → 显示文件名 → 点击上传
+            -->
+            <form id="upload-form" enctype="multipart/form-data">
+                <!-- 第一步：选择文件区域（点击整个区域触发文件选择） -->
+                <div class="file-select-zone" id="file-select-zone">
+                    <input type="file" id="file-input" name="file" accept=".txt">
+                    <div class="zone-icon">+</div>
+                    <div class="zone-text" id="zone-text">点击选择 .txt 文件</div>
+                </div>
+
+                <!-- 选中文件后的预览条 -->
+                <div class="file-preview" id="file-preview" style="display:none;">
+                    <span class="preview-icon">📄</span>
+                    <span class="preview-name" id="preview-name"></span>
+                    <button type="button" class="preview-remove" id="preview-remove" title="移除文件">✕</button>
+                </div>
+
+                <!-- 第二步：上传按钮（选择文件后才可点击） -->
+                <button type="submit" id="upload-btn" class="btn-upload" disabled>上传文件</button>
+            </form>
+        </div>
+
+        <!-- 提示信息区域：显示成功/错误消息 -->
+        <div id="message" class="message"></div>
+
+        <!-- 分词处理区域：上传成功后显示 -->
+        <div id="process-area" class="process-area" style="display:none;">
+            <p class="process-info">已上传文件：<strong id="uploaded-filename"></strong></p>
+            <button id="process-btn" class="btn-process">开始分词分析</button>
+        </div>
+
+        <!-- 词频结果区域：分词完成后显示 -->
+        <div id="result-area" class="result-area" style="display:none;">
+            <h3>词频统计结果</h3>
+            <div id="word-freq-list" class="word-freq-list"></div>
+        </div>
+
+        <!-- 文件格式说明 -->
+        <div class="info-box">
+            <h3>使用说明</h3>
+            <ul>
+                <li>目前仅支持上传 <strong>.txt</strong> 格式的文本文件</li>
+                <li>文件内容应为中文文本</li>
+                <li>文件大小限制为 16MB</li>
+                <li>上传的文件将保存到本地 uploads 文件夹</li>
+                <li>上传后点击"开始分词分析"查看词频统计</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- JavaScript：处理文件上传和分词交互 -->
+    <script>
+        // 获取 DOM 元素引用
+        var fileSelectZone = document.getElementById('file-select-zone');
+        var fileInput = document.getElementById('file-input');
+        var zoneText = document.getElementById('zone-text');
+        var filePreview = document.getElementById('file-preview');
+        var previewName = document.getElementById('preview-name');
+        var previewRemove = document.getElementById('preview-remove');
+        var uploadForm = document.getElementById('upload-form');
+        var uploadBtn = document.getElementById('upload-btn');
+        var messageBox = document.getElementById('message');
+        var processArea = document.getElementById('process-area');
+        var uploadedFilename = document.getElementById('uploaded-filename');
+        var processBtn = document.getElementById('process-btn');
+        var resultArea = document.getElementById('result-area');
+        var wordFreqList = document.getElementById('word-freq-list');
+
+        // 记录当前已上传的文件名
+        var currentFilename = '';
+
+        // 点击选择区域 → 触发文件选择
+        fileSelectZone.addEventListener('click', function() {
+            fileInput.click();
+        });
+
+        // 监听文件选择事件
+        fileInput.addEventListener('change', function() {
+            if (fileInput.files.length > 0) {
+                // 选中文件：显示预览条，隐藏选择区域
+                previewName.textContent = fileInput.files[0].name;
+                filePreview.style.display = 'flex';
+                fileSelectZone.style.display = 'none';
+                // 启用上传按钮
+                uploadBtn.disabled = false;
+            } else {
+                // 未选中：恢复初始状态
+                resetFileSelect();
+            }
+        });
+
+        // 点击移除按钮 → 清除已选文件
+        previewRemove.addEventListener('click', function() {
+            resetFileSelect();
+        });
+
+        // 重置文件选择区域到初始状态
+        function resetFileSelect() {
+            fileInput.value = '';
+            previewName.textContent = '';
+            filePreview.style.display = 'none';
+            fileSelectZone.style.display = 'flex';
+            uploadBtn.disabled = true;
+        }
+
+        // 监听表单提交事件（上传文件）
+        uploadForm.addEventListener('submit', function(event) {
+            event.preventDefault();
+
+            if (fileInput.files.length === 0) {
+                showMessage('请先选择一个文件', 'error');
+                return;
+            }
+
+            // 禁用上传按钮，防止重复提交
+            uploadBtn.disabled = true;
+            uploadBtn.textContent = '上传中...';
+
+            var formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+
+            var xhr = new XMLHttpRequest();
+            xhr.open('POST', '/upload_txt', true);
+
+            xhr.onload = function() {
+                // 恢复上传按钮
+                uploadBtn.textContent = '上传文件';
+
+                if (xhr.status === 200) {
+                    var response = JSON.parse(xhr.responseText);
+                    if (response.status === 'success') {
+                        showMessage(response.message, 'success');
+                        // 记录上传的文件名（服务器端的 UUID 文件名）
+                        currentFilename = response.filename;
+                        // 显示分词处理区域，展示原始文件名
+                        uploadedFilename.textContent = response.original_name || response.filename;
+                        processArea.style.display = 'block';
+                        // 隐藏上一次的结果
+                        resultArea.style.display = 'none';
+                        // 重置文件选择区域
+                        resetFileSelect();
+                    } else {
+                        showMessage(response.message, 'error');
+                        uploadBtn.disabled = false;
+                    }
+                } else {
+                    showMessage('服务器错误，请稍后重试', 'error');
+                    uploadBtn.disabled = false;
+                }
+            };
+
+            xhr.onerror = function() {
+                uploadBtn.textContent = '上传文件';
+                uploadBtn.disabled = false;
+                showMessage('网络错误，无法连接到服务器', 'error');
+            };
+
+            xhr.send(formData);
+        });
+
+        // 监听"开始分词分析"按钮点击事件
+        processBtn.addEventListener('click', function() {
+            if (!currentFilename) {
+                showMessage('请先上传文件', 'error');
+                return;
+            }
+
+            // 禁用按钮，防止重复点击
+            processBtn.disabled = true;
+            processBtn.textContent = '分析中...';
+
+            var xhr = new XMLHttpRequest();
+            xhr.open('POST', '/process_text', true);
+            xhr.setRequestHeader('Content-Type', 'application/json');
+
+            xhr.onload = function() {
+                // 恢复按钮状态
+                processBtn.disabled = false;
+                processBtn.textContent = '开始分词分析';
+
+                if (xhr.status === 200) {
+                    var response = JSON.parse(xhr.responseText);
+                    if (response.status === 'success') {
+                        showMessage('分词分析完成！', 'success');
+                        // 渲染词频结果
+                        renderWordFreq(response.word_freq);
+                    } else {
+                        showMessage(response.message, 'error');
+                    }
+                } else {
+                    showMessage('服务器错误，请稍后重试', 'error');
+                }
+            };
+
+            xhr.onerror = function() {
+                processBtn.disabled = false;
+                processBtn.textContent = '开始分词分析';
+                showMessage('网络错误，无法连接到服务器', 'error');
+            };
+
+            // 发送 JSON 数据：文件名
+            xhr.send(JSON.stringify({ filename: currentFilename }));
+        });
+
+        /**
+         * 渲染词频统计结果到页面。
+         *
+         * @param {Object} wordFreq - 词频字典，例如 {"数据": 20, "分析": 15}
+         */
+        function renderWordFreq(wordFreq) {
+            // 清空之前的结果
+            wordFreqList.innerHTML = '';
+
+            // 将字典转为数组并按频次降序排序
+            var items = Object.entries(wordFreq).sort(function(a, b) {
+                return b[1] - a[1];
+            });
+
+            // 找到最大频次（用于计算条形宽度比例）
+            var maxFreq = items.length > 0 ? items[0][1] : 1;
+
+            // 生成每个词的展示条
+            for (var i = 0; i < items.length; i++) {
+                var word = items[i][0];
+                var freq = items[i][1];
+
+                var item = document.createElement('div');
+                item.className = 'freq-item';
+
+                // 词语标签
+                var label = document.createElement('span');
+                label.className = 'freq-word';
+                label.textContent = word;
+
+                // 频次条形（宽度按比例计算）
+                var bar = document.createElement('div');
+                bar.className = 'freq-bar';
+                bar.style.width = Math.max(freq / maxFreq * 100, 5) + '%';
+
+                // 频次数字
+                var count = document.createElement('span');
+                count.className = 'freq-count';
+                count.textContent = freq;
+
+                item.appendChild(label);
+                item.appendChild(bar);
+                item.appendChild(count);
+                wordFreqList.appendChild(item);
+            }
+
+            // 显示结果区域
+            resultArea.style.display = 'block';
+        }
+
+        /**
+         * 在页面上显示提示消息。
+         *
+         * @param {string} text - 提示文字内容
+         * @param {string} type - 消息类型：'success' 显示绿色，'error' 显示红色
+         */
+        function showMessage(text, type) {
+            messageBox.textContent = text;
+            messageBox.className = 'message ' + type;
+            messageBox.style.display = 'block';
+            setTimeout(function() {
+                messageBox.style.display = 'none';
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
