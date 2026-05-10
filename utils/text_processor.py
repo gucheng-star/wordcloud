@@ -167,3 +167,40 @@ def process_file(filepath, top_n=None):
     word_freq = count_word_freq(words, top_n)
 
     return word_freq
+
+
+def process_text_string(text, top_n=None):
+    """
+    直接处理文本字符串：分词 → 过滤 → 统计词频。
+
+    与 process_file 不同，此函数直接接收文本字符串，
+    不需要文件路径。用于"直接输入文本"功能。
+
+    参数:
+        text: 待处理的文本字符串
+        top_n: 返回前 N 个高频词，默认为 None（返回全部）
+
+    返回:
+        dict: 词频字典，例如 {"数据": 20, "分析": 15}
+
+    异常:
+        ValueError: 文本为空或仅含空白字符
+    """
+    # 输入校验
+    if not text or not text.strip():
+        raise ValueError('文本内容不能为空')
+
+    # 文本长度限制（防止恶意超大输入）
+    if len(text) > 5000000:
+        raise ValueError('文本内容过长，请控制在 500 万字符以内')
+
+    # 第一步: 加载停用词
+    stopwords = load_stopwords()
+
+    # 第二步: 分词 + 过滤
+    words = segment_text(text, stopwords)
+
+    # 第三步: 统计词频
+    word_freq = count_word_freq(words, top_n)
+
+    return word_freq

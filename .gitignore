@@ -5,12 +5,16 @@ venv/
 __pycache__/
 *.pyc
 *.pyo
-
+# 测试文件
+test/
 # 用户上传文件（运行时生成）
 uploads/*.txt
 
 # 词云输出图片（运行时生成）
 outputs/*.png
+
+# 历史记录数据（运行时生成）
+data/*.json
 
 # IDE 配置
 .vscode/

@@ -44,6 +44,37 @@
    返回: JSON
      成功: {"status": "success", "image_url": "/outputs/wordcloud_xxx.png"}
      失败: {"status": "error", "message": "错误原因"}
+
+6. 保存历史记录
+   方法: POST
+   路径: /save_history
+   参数: word_freq + params + filename（JSON）
+   返回: JSON
+     成功: {"status": "success", "id": "xxx"}
+     失败: {"status": "error", "message": "错误原因"}
+
+7. 获取历史记录列表
+   方法: GET
+   路径: /history_list
+   参数: 无
+   返回: JSON
+     成功: {"status": "success", "history": [...]}
+
+8. 加载历史记录
+   方法: POST
+   路径: /load_history
+   参数: id（JSON）
+   返回: JSON
+     成功: {"status": "success", "word_freq": {...}, "params": {...}}
+     失败: {"status": "error", "message": "错误原因"}
+
+9. 删除历史记录
+   方法: POST
+   路径: /delete_history
+   参数: id（JSON）
+   返回: JSON
+     成功: {"status": "success"}
+     失败: {"status": "error", "message": "错误原因"}
 """
 
 import os
@@ -53,6 +84,7 @@ from werkzeug.utils import secure_filename
 from utils.text_processor import process_file
 from utils.filter_processor import filter_word_freq
 from utils.cloud_generator import generate_wordcloud
+from utils.history_manager import save_history, load_history, delete_history, get_history_by_id
 
 # 创建 Flask 应用实例
 app = Flask(__name__)
@@ -317,6 +349,143 @@ def generate_wordcloud_route():
 def serve_output(filename):
     """提供词云图片的访问路由。"""
     return send_from_directory(app.config['OUTPUT_FOLDER'], filename)
+
+
+# ========== 历史记录接口 ==========
+
+@app.route('/cache_word_freq', methods=['POST'])
+def cache_word_freq():
+    """
+    缓存词频数据接口（用于历史记录重新生成）。
+
+    将词频数据写入内存缓存，返回 session_id，
+    供后续 /generate_wordcloud 使用。
+
+    请求 JSON:
+        {"word_freq": {...}}
+
+    返回 JSON:
+        成功: {"status": "success", "session_id": "xxx"}
+        失败: {"status": "error", "message": "错误原因"}
+    """
+    data = request.get_json()
+
+    if not data or 'word_freq' not in data:
+        return jsonify({'status': 'error', 'message': '缺少 word_freq 参数'})
+
+    if not isinstance(data['word_freq'], dict):
+        return jsonify({'status': 'error', 'message': 'word_freq 必须是字典格式'})
+
+    if not data['word_freq']:
+        return jsonify({'status': 'error', 'message': '词频数据不能为空'})
+
+    session_id = uuid.uuid4().hex[:8]
+    word_freq_cache[session_id] = {'word_freq': data['word_freq']}
+
+    return jsonify({'status': 'success', 'session_id': session_id})
+
+
+@app.route('/save_history', methods=['POST'])
+def save_history_route():
+    """
+    保存历史记录接口。
+
+    请求 JSON:
+        {"word_freq": {...}, "params": {...}, "filename": "xxx.txt"}
+
+    返回 JSON:
+        成功: {"status": "success", "id": "xxx"}
+        失败: {"status": "error", "message": "错误原因"}
+    """
+    data = request.get_json()
+
+    if not data:
+        return jsonify({'status': 'error', 'message': '请求体不能为空'})
+
+    if 'word_freq' not in data:
+        return jsonify({'status': 'error', 'message': '缺少 word_freq 参数'})
+
+    if 'params' not in data:
+        return jsonify({'status': 'error', 'message': '缺少 params 参数'})
+
+    try:
+        record_id = save_history({
+            'word_freq': data['word_freq'],
+            'params': data['params'],
+            'filename': data.get('filename', '')
+        })
+        return jsonify({'status': 'success', 'id': record_id})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': f'保存失败：{str(e)}'})
+
+
+@app.route('/history_list', methods=['GET'])
+def history_list_route():
+    """
+    获取历史记录列表接口。
+
+    返回 JSON:
+        成功: {"status": "success", "history": [...]}
+    """
+    try:
+        history = load_history()
+        return jsonify({'status': 'success', 'history': history})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': f'加载失败：{str(e)}'})
+
+
+@app.route('/load_history', methods=['POST'])
+def load_history_route():
+    """
+    加载指定历史记录接口。
+
+    请求 JSON:
+        {"id": "xxx"}
+
+    返回 JSON:
+        成功: {"status": "success", "word_freq": {...}, "params": {...}}
+        失败: {"status": "error", "message": "错误原因"}
+    """
+    data = request.get_json()
+
+    if not data or 'id' not in data:
+        return jsonify({'status': 'error', 'message': '缺少 id 参数'})
+
+    record = get_history_by_id(data['id'])
+
+    if record is None:
+        return jsonify({'status': 'error', 'message': '记录不存在'})
+
+    return jsonify({
+        'status': 'success',
+        'word_freq': record.get('word_freq', {}),
+        'params': record.get('params', {})
+    })
+
+
+@app.route('/delete_history', methods=['POST'])
+def delete_history_route():
+    """
+    删除历史记录接口。
+
+    请求 JSON:
+        {"id": "xxx"}
+
+    返回 JSON:
+        成功: {"status": "success"}
+        失败: {"status": "error", "message": "错误原因"}
+    """
+    data = request.get_json()
+
+    if not data or 'id' not in data:
+        return jsonify({'status': 'error', 'message': '缺少 id 参数'})
+
+    success = delete_history(data['id'])
+
+    if success:
+        return jsonify({'status': 'success'})
+    else:
+        return jsonify({'status': 'error', 'message': '记录不存在'})
 
 
 if __name__ == '__main__':
