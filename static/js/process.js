@@ -1,6 +1,7 @@
 import { state, dom } from './state.js';
 import { postJSON, showMessage } from './utils.js';
 import { renderWordFreq } from './filter.js';
+import { updateGenerateBtnState } from './cloud.js';
 
 export function initProcess() {
     dom.processBtn.addEventListener('click', function() {
@@ -17,8 +18,8 @@ export function initProcess() {
                 state.currentOriginalWordFreq = response.original_word_freq || response.word_freq;
                 state.currentRemovedWords = response.removed_words || [];
                 renderWordFreq(state.currentOriginalWordFreq, state.currentRemovedWords);
-                dom.cloudArea.style.display = 'block';
                 dom.cloudResult.style.display = 'none';
+                updateGenerateBtnState();
             } else { showMessage(response.message, 'error'); }
         });
     });

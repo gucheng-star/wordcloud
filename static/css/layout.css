@@ -9,6 +9,7 @@
         "process"
         "result"
         "cloud"
+        "mask"
         "history"
         "manage"
         "info";
@@ -30,6 +31,7 @@
 #process-area { grid-area: process; }
 #result-area { grid-area: result; }
 #cloud-area { grid-area: cloud; }
+#mask-area { grid-area: mask; }
 #history-area { grid-area: history; }
 .manage-area { grid-area: manage; }
 .info-box { grid-area: info; }
@@ -43,6 +45,7 @@
             "message message"
             "process process"
             "result cloud"
+            "mask   cloud"
             "history manage"
             "info    info";
     }
@@ -56,7 +59,8 @@
             "input   input   input"
             "message message message"
             "process process process"
-            "result  result  cloud"
+            "result  cloud   cloud"
+            "mask    cloud   cloud"
             "history manage info";
     }
 }

@@ -15,6 +15,8 @@ import random
 import re
 from wordcloud import WordCloud
 import matplotlib.cm as cm
+import numpy as np
+from PIL import Image
 
 
 # ========== 字体路径自动检测 ==========
@@ -61,6 +63,42 @@ COLOR_THEMES = {
 }
 
 VALID_THEMES = list(COLOR_THEMES.keys()) + ['random']
+
+
+LAYOUT_STYLES = {
+    'classic': {
+        'prefer_horizontal': 0.95,
+        'rotate_steps': 2,
+        'description': '传统布局，大部分水平',
+    },
+    'dynamic': {
+        'prefer_horizontal': 0.7,
+        'rotate_steps': 4,
+        'description': '部分词随机旋转，增强视觉动感',
+    },
+    'poster': {
+        'prefer_horizontal': 0.5,
+        'rotate_steps': 6,
+        'description': '宣传海报风格，增加垂直词和方向混排',
+    },
+    'vertical_mix': {
+        'prefer_horizontal': 0.3,
+        'rotate_steps': 2,
+        'description': '水平与垂直混合布局',
+    },
+}
+
+VALID_LAYOUT_STYLES = list(LAYOUT_STYLES.keys())
+
+
+def resolve_layout_config(layout_style):
+    if layout_style not in LAYOUT_STYLES:
+        layout_style = 'classic'
+    config = LAYOUT_STYLES[layout_style]
+    return {
+        'prefer_horizontal': config['prefer_horizontal'],
+        'rotate_steps': config['rotate_steps'],
+    }
 
 
 def is_valid_hex(hex_str):
@@ -167,7 +205,8 @@ def resolve_color_config(color_theme, color_hex):
 def generate_wordcloud(word_freq, output_path,
                        max_font_size=80, min_font_size=20,
                        color_theme='blue', color_hex='',
-                       width=800, height=600):
+                       width=800, height=600,
+                       mask=None):
     """
     根据词频字典生成词云图片并保存。
 
@@ -180,6 +219,7 @@ def generate_wordcloud(word_freq, output_path,
         color_hex: HEX 自定义颜色，如 '#3366ff'，优先于 color_theme
         width: 词云图片宽度（像素），默认 800
         height: 词云图片高度（像素），默认 600
+        mask: numpy 数组形式的 mask，如果提供则忽略 width/height
 
     返回:
         str: 生成的图片文件名
@@ -202,8 +242,6 @@ def generate_wordcloud(word_freq, output_path,
 
     wc_params = {
         'font_path': font_path,
-        'width': width,
-        'height': height,
         'background_color': 'white',
         'max_font_size': max_font_size,
         'min_font_size': min_font_size,
@@ -211,11 +249,54 @@ def generate_wordcloud(word_freq, output_path,
         'collocations': False,
     }
 
+    if mask is not None:
+        wc_params['mask'] = mask
+        wc_params['contour_width'] = 0
+    else:
+        wc_params['width'] = width
+        wc_params['height'] = height
+
     color_config = resolve_color_config(color_theme, color_hex)
     wc_params.update(color_config)
 
     wc = WordCloud(**wc_params)
     wc.generate_from_frequencies(word_freq)
     wc.to_file(output_path)
+
+    return os.path.basename(output_path)
+
+
+def overlay_wordcloud_with_image(wordcloud_path, mask_image_path, output_path, opacity=0.3):
+    """
+    将词云图片与原始 mask 图片进行叠化混合。
+
+    效果: 在词云上叠加半透明的原始图片，帮助用户确认词云形状与输入图片的匹配程度。
+
+    参数:
+        wordcloud_path: 词云图片路径
+        mask_image_path: 原始 mask 图片路径
+        output_path: 叠化后输出路径
+        opacity: 原图叠化透明度，0.0~1.0，默认 0.3
+            0.0 = 完全透明（只显示词云）
+            1.0 = 完全不透明（只显示原图）
+
+    返回:
+        str: 输出文件名
+    """
+    opacity = max(0.0, min(1.0, float(opacity)))
+
+    wc_img = Image.open(wordcloud_path).convert('RGBA')
+    mask_img = Image.open(mask_image_path).convert('RGBA')
+
+    mask_img = mask_img.resize(wc_img.size, Image.LANCZOS)
+
+    wc_arr = np.array(wc_img).astype(np.float32)
+    mask_arr = np.array(mask_img).astype(np.float32)
+
+    blended = wc_arr * (1 - opacity) + mask_arr * opacity
+    blended = np.clip(blended, 0, 255).astype(np.uint8)
+
+    result = Image.fromarray(blended, 'RGBA')
+    result.save(output_path)
 
     return os.path.basename(output_path)

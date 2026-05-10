@@ -1,6 +1,7 @@
 import { state, dom } from './state.js';
 import { showMessage } from './utils.js';
 import { loadStorageInfo } from './manage.js';
+import { updateGenerateBtnState } from './cloud.js';
 
 export function initUpload() {
     var fileSelectZone = document.getElementById('file-select-zone');
@@ -51,9 +52,9 @@ export function initUpload() {
                     state.currentFilename = response.filename;
                     state.currentOriginalName = response.original_name || response.filename;
                     dom.uploadedFilename.textContent = state.currentOriginalName;
-                    dom.processArea.style.display = 'block';
+                    dom.processBtn.disabled = false;
                     dom.resultArea.style.display = 'none';
-                    dom.cloudArea.style.display = 'none';
+                    dom.cloudResult.style.display = 'none';
                     resetFileSelect();
                     loadStorageInfo();
                 } else { showMessage(response.message, 'error'); uploadBtn.disabled = false; }

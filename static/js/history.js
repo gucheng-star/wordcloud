@@ -1,6 +1,7 @@
 import { state, dom } from './state.js';
 import { postJSON, showMessage, showConfirm } from './utils.js';
 import { renderWordFreq } from './filter.js';
+import { updateGenerateBtnState } from './cloud.js';
 
 export function initHistory() {
     loadHistoryList();
@@ -85,7 +86,6 @@ function regenerateFromHistory(recordId) {
             state.currentOriginalWordFreq = dict(wordFreq);
             state.currentRemovedWords = [];
             renderWordFreq(state.currentOriginalWordFreq, state.currentRemovedWords);
-            dom.cloudArea.style.display = 'block';
             dom.cloudResult.style.display = 'none';
 
             var maxFontInput = document.getElementById('max-font');
@@ -116,6 +116,7 @@ function regenerateFromHistory(recordId) {
             postJSON('/cache_word_freq', { word_freq: wordFreq }, function(resp) {
                 if (resp.status === 'success') {
                     state.currentSessionId = resp.session_id;
+                    updateGenerateBtnState();
                     showMessage('历史记录已加载，点击"生成词云"', 'success');
                 }
             });

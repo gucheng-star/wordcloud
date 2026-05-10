@@ -83,7 +83,8 @@ from flask import Flask, render_template, request, jsonify, send_from_directory
 from werkzeug.utils import secure_filename
 from utils.text_processor import process_file, process_text_string
 from utils.filter_processor import filter_word_freq
-from utils.cloud_generator import generate_wordcloud, VALID_THEMES
+from utils.cloud_generator import generate_wordcloud, overlay_wordcloud_with_image, VALID_THEMES
+from utils.mask_processor import generate_mask, is_allowed_image, get_mask_preview_info, generate_grayscale_image, invert_grayscale_image, validate_threshold
 from utils.history_manager import save_history, load_history, delete_history, get_history_by_id, clear_all_history
 
 # 创建 Flask 应用实例
@@ -96,6 +97,10 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 # 配置词云输出文件夹路径
 OUTPUT_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'outputs')
 app.config['OUTPUT_FOLDER'] = OUTPUT_FOLDER
+
+# 配置 mask 图片文件夹路径
+MASK_FOLDER = os.path.join(UPLOAD_FOLDER, 'masks')
+app.config['MASK_FOLDER'] = MASK_FOLDER
 
 # 允许上传的文件扩展名（白名单，只允许 txt 文件）
 ALLOWED_EXTENSIONS = {'txt'}
@@ -376,11 +381,267 @@ def generate_wordcloud_route():
         return jsonify({'status': 'error', 'message': f'词云生成失败：{str(e)}'})
 
 
-# 静态文件路由：提供 outputs 文件夹中的图片访问
+# ========== Mask 图片上传接口 ==========
+
+@app.route('/upload_mask_image', methods=['POST'])
+def upload_mask_image():
+    """
+    上传 mask 图片接口。
+
+    接收图片文件，保存到 uploads/masks 目录。
+
+    请求: multipart/form-data，字段名 file
+
+    返回 JSON:
+        成功: {"status": "success", "mask_filename": "xxx.png", "preview": {"width": 800, "height": 600, "white_ratio": 65.3}}
+        失败: {"status": "error", "message": "错误原因"}
+    """
+    if 'file' not in request.files:
+        return jsonify({'status': 'error', 'message': '未找到上传文件'})
+
+    file = request.files['file']
+
+    if file.filename == '':
+        return jsonify({'status': 'error', 'message': '未选择文件'})
+
+    if not is_allowed_image(file.filename):
+        return jsonify({'status': 'error', 'message': '不支持的图片格式，请上传 png/jpg/jpeg/bmp/gif/webp'})
+
+    ext = file.filename.rsplit('.', 1)[-1].lower()
+    mask_filename = f'mask_{uuid.uuid4().hex[:8]}.{ext}'
+    mask_path = os.path.join(app.config['MASK_FOLDER'], mask_filename)
+
+    try:
+        os.makedirs(app.config['MASK_FOLDER'], exist_ok=True)
+        file.save(mask_path)
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': f'图片保存失败：{str(e)}'})
+
+    try:
+        preview = get_mask_preview_info(mask_path, 128)
+    except Exception:
+        preview = None
+
+    return jsonify({
+        'status': 'success',
+        'mask_filename': mask_filename,
+        'preview': preview
+    })
+
+
+@app.route('/generate_grayscale', methods=['POST'])
+def generate_grayscale_route():
+    data = request.get_json()
+
+    if not data or 'mask_filename' not in data:
+        return jsonify({'status': 'error', 'message': '缺少 mask_filename 参数'})
+
+    mask_filename = data['mask_filename']
+
+    if not is_safe_filename(mask_filename):
+        return jsonify({'status': 'error', 'message': '文件名无效'})
+
+    mask_path = os.path.join(app.config['MASK_FOLDER'], mask_filename)
+    if not os.path.exists(mask_path):
+        return jsonify({'status': 'error', 'message': 'Mask 图片不存在，请重新上传'})
+
+    threshold = data.get('threshold', 128)
+    invert = data.get('invert', False)
+
+    threshold = validate_threshold(threshold)
+
+    grayscale_filename = f'grayscale_{uuid.uuid4().hex[:8]}.png'
+    grayscale_path = os.path.join(app.config['OUTPUT_FOLDER'], grayscale_filename)
+
+    try:
+        result = generate_grayscale_image(mask_path, grayscale_path, threshold, invert)
+        return jsonify({
+            'status': 'success',
+            'grayscale_url': f'/outputs/{grayscale_filename}',
+            'grayscale_filename': grayscale_filename,
+            'width': result['width'],
+            'height': result['height']
+        })
+    except (FileNotFoundError, ValueError) as e:
+        return jsonify({'status': 'error', 'message': str(e)})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': f'灰度图生成失败：{str(e)}'})
+
+
+@app.route('/invert_grayscale', methods=['POST'])
+def invert_grayscale_route():
+    data = request.get_json()
+
+    if not data or 'grayscale_filename' not in data:
+        return jsonify({'status': 'error', 'message': '缺少 grayscale_filename 参数'})
+
+    grayscale_filename = data['grayscale_filename']
+
+    if not is_safe_filename(grayscale_filename):
+        return jsonify({'status': 'error', 'message': '文件名无效'})
+
+    grayscale_path = os.path.join(app.config['OUTPUT_FOLDER'], grayscale_filename)
+    if not os.path.exists(grayscale_path):
+        return jsonify({'status': 'error', 'message': '灰度图片不存在，请先生成灰度图'})
+
+    threshold = data.get('threshold', 128)
+
+    threshold = validate_threshold(threshold)
+
+    inverted_filename = f'grayscale_inv_{uuid.uuid4().hex[:8]}.png'
+    inverted_path = os.path.join(app.config['OUTPUT_FOLDER'], inverted_filename)
+
+    try:
+        result = invert_grayscale_image(grayscale_path, inverted_path, threshold)
+        return jsonify({
+            'status': 'success',
+            'grayscale_url': f'/outputs/{inverted_filename}',
+            'grayscale_filename': inverted_filename,
+            'width': result['width'],
+            'height': result['height']
+        })
+    except (FileNotFoundError, ValueError) as e:
+        return jsonify({'status': 'error', 'message': str(e)})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': f'灰度反转失败：{str(e)}'})
+
+
+@app.route('/generate_mask_wordcloud', methods=['POST'])
+def generate_mask_wordcloud_route():
+    """
+    生成形状词云接口：使用 mask 图片生成词云。
+
+    请求 JSON:
+        {
+            "session_id": "abc123",
+            "mask_filename": "mask_xxx.png",
+            "threshold": 128,
+            "max_font_size": 80,
+            "min_font_size": 20,
+            "color_theme": "blue",
+            "color_hex": "#3366ff"
+        }
+
+    返回 JSON:
+        成功: {"status": "success", "image_url": "/outputs/wordcloud_abc123.png"}
+        失败: {"status": "error", "message": "错误原因"}
+    """
+    data = request.get_json()
+
+    if not data or 'session_id' not in data:
+        return jsonify({'status': 'error', 'message': '缺少 session_id 参数'})
+
+    if 'mask_filename' not in data:
+        return jsonify({'status': 'error', 'message': '缺少 mask_filename 参数'})
+
+    session_id = data['session_id']
+    mask_filename = data['mask_filename']
+    original_mask_filename = data.get('original_mask_filename', '')
+
+    if session_id not in word_freq_cache:
+        return jsonify({'status': 'error', 'message': '会话已过期，请重新上传文件'})
+
+    word_freq = word_freq_cache[session_id]['word_freq']
+    if not word_freq:
+        return jsonify({'status': 'error', 'message': '词频数据为空，无法生成词云'})
+
+    if not is_safe_filename(mask_filename):
+        return jsonify({'status': 'error', 'message': '文件名无效'})
+
+    mask_path = os.path.join(app.config['MASK_FOLDER'], mask_filename)
+    grayscale_path = os.path.join(app.config['OUTPUT_FOLDER'], mask_filename)
+
+    if os.path.exists(grayscale_path):
+        mask_path = grayscale_path
+    elif not os.path.exists(mask_path):
+        return jsonify({'status': 'error', 'message': 'Mask 图片不存在，请重新上传'})
+
+    original_mask_path = None
+    if original_mask_filename and is_safe_filename(original_mask_filename):
+        candidate = os.path.join(app.config['MASK_FOLDER'], original_mask_filename)
+        if os.path.exists(candidate):
+            original_mask_path = candidate
+
+    threshold = data.get('threshold', 128)
+    max_font_size = data.get('max_font_size', 80)
+    min_font_size = data.get('min_font_size', 20)
+    color_theme = data.get('color_theme', 'blue')
+    color_hex = data.get('color_hex', '')
+    overlay_opacity = data.get('overlay_opacity', 0)
+
+    threshold = validate_threshold(threshold)
+
+    try:
+        max_font_size = int(max_font_size)
+        min_font_size = int(min_font_size)
+        overlay_opacity = float(overlay_opacity)
+    except (ValueError, TypeError):
+        return jsonify({'status': 'error', 'message': '参数格式不正确'})
+
+    if overlay_opacity < 0 or overlay_opacity > 1:
+        return jsonify({'status': 'error', 'message': '叠化透明度范围：0 ~ 1'})
+
+    if max_font_size < min_font_size:
+        return jsonify({'status': 'error', 'message': '最大字号不能小于最小字号'})
+
+    if color_theme not in VALID_THEMES:
+        return jsonify({'status': 'error', 'message': f'不支持的颜色主题，可选：{" / ".join(VALID_THEMES)}'})
+
+    try:
+        mask = generate_mask(mask_path, threshold)
+    except (FileNotFoundError, ValueError) as e:
+        return jsonify({'status': 'error', 'message': str(e)})
+
+    output_filename = f'wordcloud_{session_id}.png'
+    output_path = os.path.join(app.config['OUTPUT_FOLDER'], output_filename)
+
+    try:
+        generate_wordcloud(
+            word_freq=word_freq,
+            output_path=output_path,
+            max_font_size=max_font_size,
+            min_font_size=min_font_size,
+            color_theme=color_theme,
+            color_hex=color_hex,
+            mask=mask
+        )
+
+        if overlay_opacity > 0:
+            overlay_filename = f'wordcloud_overlay_{session_id}.png'
+            overlay_path = os.path.join(app.config['OUTPUT_FOLDER'], overlay_filename)
+            overlay_source = original_mask_path if original_mask_path else mask_path
+            try:
+                overlay_wordcloud_with_image(output_path, overlay_source, overlay_path, overlay_opacity)
+                output_filename = overlay_filename
+            except Exception:
+                pass
+
+        return jsonify({
+            'status': 'success',
+            'image_url': f'/outputs/{output_filename}'
+        })
+    except ValueError as e:
+        return jsonify({'status': 'error', 'message': str(e)})
+    except RuntimeError as e:
+        return jsonify({'status': 'error', 'message': str(e)})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': f'词云生成失败：{str(e)}'})
+
+
+# ========== 静态文件路由 ==========
+
 @app.route('/outputs/<path:filename>')
 def serve_output(filename):
     """提供词云图片的访问路由。"""
     return send_from_directory(app.config['OUTPUT_FOLDER'], filename)
+
+
+@app.route('/masks/<path:filename>')
+def serve_mask(filename):
+    """提供 mask 图片的访问路由。"""
+    if not is_safe_filename(filename):
+        return jsonify({'status': 'error', 'message': '文件名无效'}), 400
+    return send_from_directory(app.config['MASK_FOLDER'], filename)
 
 
 @app.route('/download_image/<path:filename>')
@@ -646,7 +907,8 @@ def storage_info():
     return jsonify({
         'status': 'success',
         'uploads': get_dir_info(UPLOAD_FOLDER),
-        'outputs': get_dir_info(OUTPUT_FOLDER)
+        'outputs': get_dir_info(OUTPUT_FOLDER),
+        'masks': get_dir_info(MASK_FOLDER)
     })
 
 
@@ -692,6 +954,32 @@ def clean_outputs():
             freed += os.path.getsize(fp)
             os.remove(fp)
             deleted += 1
+
+    return jsonify({
+        'status': 'success',
+        'deleted': deleted,
+        'freed_kb': round(freed / 1024, 1)
+    })
+
+
+@app.route('/clean_masks', methods=['POST'])
+def clean_masks():
+    """
+    清理 masks 目录中的图片文件接口。
+
+    返回 JSON:
+        成功: {"status": "success", "deleted": N, "freed_kb": N}
+    """
+    deleted = 0
+    freed = 0
+
+    if os.path.exists(MASK_FOLDER):
+        for f in os.listdir(MASK_FOLDER):
+            fp = os.path.join(MASK_FOLDER, f)
+            if os.path.isfile(fp) and not f.startswith('.'):
+                freed += os.path.getsize(fp)
+                os.remove(fp)
+                deleted += 1
 
     return jsonify({
         'status': 'success',

@@ -14,6 +14,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/process.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/result.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/cloud.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/mask.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/history.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/manage.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/info.css') }}">
@@ -57,12 +58,12 @@
 
         <div id="message" class="message"></div>
 
-        <div id="process-area" class="process-area" style="display:none;">
+        <div id="process-area" class="process-area">
             <p class="process-info">已上传文件：<strong id="uploaded-filename"></strong></p>
-            <button id="process-btn" class="btn-process">开始分词分析</button>
+            <button id="process-btn" class="btn-process" disabled>开始分词分析</button>
         </div>
 
-        <div id="result-area" class="result-area" style="display:none;">
+        <div id="result-area" class="result-area">
             <div class="result-header">
                 <h3>词频统计结果</h3>
                 <div class="select-controls">
@@ -72,10 +73,10 @@
             </div>
             <p class="result-hint">点击词语标签切换过滤状态，灰色划线 = 已过滤（不参与词云）</p>
             <div id="word-freq-list" class="word-freq-list"></div>
-            <button type="button" id="filter-btn" class="btn-filter">确认过滤</button>
+            <button type="button" id="filter-btn" class="btn-filter" disabled>确认过滤</button>
         </div>
 
-        <div id="cloud-area" class="cloud-area" style="display:none;">
+        <div id="cloud-area" class="cloud-area">
             <h3>生成词云</h3>
             <div class="cloud-params">
                 <div class="param-row">
@@ -115,10 +116,53 @@
                     </div>
                 </div>
             </div>
-            <button type="button" id="generate-btn" class="btn-generate">生成词云</button>
+            <div class="cloud-buttons">
+                <button type="button" id="generate-btn" class="btn-generate" disabled>生成词云</button>
+                <button type="button" id="mask-generate-btn" class="btn-mask-generate" disabled>生成形状词云</button>
+            </div>
             <div id="cloud-result" class="cloud-result" style="display:none;">
                 <img id="cloud-image" class="cloud-image" alt="词云图">
                 <a id="download-btn" class="btn-download" download>下载词云图片</a>
+            </div>
+        </div>
+
+        <div id="mask-area" class="mask-area">
+            <h3>灰度图片处理</h3>
+            <div class="mask-upload-zone" id="mask-upload-zone">
+                <input type="file" id="mask-file-input" accept="image/png,image/jpeg,image/bmp,image/gif,image/webp">
+                <div class="zone-icon-small">🖼</div>
+                <div class="zone-text-small">点击上传图片</div>
+            </div>
+            <div class="mask-preview" id="mask-preview" style="display:none;">
+                <img id="mask-preview-img" class="mask-preview-img" alt="Mask预览">
+                <div class="mask-preview-info">
+                    <span class="mask-preview-name" id="mask-preview-name"></span>
+                    <button type="button" class="mask-preview-remove" id="mask-preview-remove" title="移除图片">✕</button>
+                </div>
+            </div>
+            <div class="threshold-control">
+                <div class="threshold-label">
+                    <span>灰度阈值</span>
+                    <span class="threshold-value" id="threshold-value">128</span>
+                </div>
+                <input type="range" id="threshold-slider" class="threshold-slider" min="0" max="255" value="128">
+            </div>
+            <div class="mask-buttons">
+                <button type="button" id="grayscale-btn" class="btn-grayscale" disabled>生成灰度图片</button>
+                <button type="button" id="invert-btn" class="btn-invert" disabled>灰度反转</button>
+            </div>
+            <div id="grayscale-preview" class="grayscale-preview" style="display:none;">
+                <h4>灰度预览</h4>
+                <p class="grayscale-hint">词云将在黑色部分生成，建议先将图片进行扣图处理，本应用无法处理背景</p>
+                <img id="grayscale-preview-img" class="grayscale-preview-img" alt="灰度预览">
+                <div class="grayscale-info" id="grayscale-info"></div>
+            </div>
+            <div class="threshold-control">
+                <div class="threshold-label">
+                    <span>叠化透明度</span>
+                    <span class="threshold-value" id="overlay-value">0%</span>
+                </div>
+                <input type="range" id="overlay-slider" class="threshold-slider" min="0" max="100" value="0">
             </div>
         </div>
 
@@ -138,6 +182,7 @@
             <div class="manage-actions">
                 <button type="button" id="clean-uploads-btn" class="btn-manage">清理上传文件</button>
                 <button type="button" id="clean-outputs-btn" class="btn-manage">清理词云图片</button>
+                <button type="button" id="clean-masks-btn" class="btn-manage">清理Mask图片</button>
             </div>
         </div>
 
@@ -147,6 +192,7 @@
                 <li>支持上传 <strong>.txt</strong> 文件或直接输入文本</li>
                 <li>点击词语标签切换过滤状态，灰色划线 = 已过滤</li>
                 <li>调整词云参数后，点击"生成词云"</li>
+                <li>上传图片后，先生成灰度图片，再生成形状词云</li>
                 <li>生成成功后自动保存到历史记录</li>
             </ul>
         </div>

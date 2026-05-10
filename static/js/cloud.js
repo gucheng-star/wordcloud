@@ -2,6 +2,7 @@ import { state, dom } from './state.js';
 import { postJSON, showMessage } from './utils.js';
 import { loadHistoryList } from './history.js';
 import { loadStorageInfo } from './manage.js';
+import { updateMaskGenerateBtnState } from './mask.js';
 
 export function initCloud() {
     var maxFontInput = document.getElementById('max-font');
@@ -13,6 +14,8 @@ export function initCloud() {
     var colorHexInput = document.getElementById('color-hex');
     var colorPicker = document.getElementById('color-picker');
     var generateBtn = document.getElementById('generate-btn');
+    var maskGenerateBtn = document.getElementById('mask-generate-btn');
+    var overlaySlider = document.getElementById('overlay-slider');
 
     colorThemeSelect.addEventListener('change', function() {
         if (colorThemeSelect.value === 'custom') {
@@ -68,6 +71,56 @@ export function initCloud() {
             } else { showMessage(response.message, 'error'); }
         });
     });
+
+    maskGenerateBtn.addEventListener('click', function() {
+        if (!state.currentSessionId) { showMessage('请先进行分词分析', 'error'); return; }
+        if (!state.grayscaleReady || !state.grayscaleFilename) { showMessage('请先生成灰度图片', 'error'); return; }
+
+        maskGenerateBtn.disabled = true;
+        maskGenerateBtn.textContent = '生成中...';
+
+        var colorHex = '';
+        if (colorThemeSelect.value === 'custom') {
+            colorHex = colorHexInput.value.trim();
+        }
+
+        var overlayOpacity = parseInt(overlaySlider.value) / 100;
+
+        var params = {
+            session_id: state.currentSessionId,
+            mask_filename: state.grayscaleFilename,
+            original_mask_filename: state.maskFilename,
+            threshold: parseInt(document.getElementById('threshold-slider').value),
+            overlay_opacity: overlayOpacity,
+            max_font_size: parseInt(maxFontInput.value) || 80,
+            min_font_size: parseInt(minFontInput.value) || 20,
+            color_theme: colorThemeSelect.value === 'custom' ? 'blue' : colorThemeSelect.value,
+            color_hex: colorHex
+        };
+
+        postJSON('/generate_mask_wordcloud', params, function(response) {
+            maskGenerateBtn.disabled = false;
+            maskGenerateBtn.textContent = '生成形状词云';
+            if (response.status === 'success') {
+                showMessage('形状词云生成成功！', 'success');
+                dom.cloudImage.src = response.image_url + '?t=' + Date.now();
+                dom.downloadBtn.href = '/download_image/' + response.image_url.split('/').pop();
+                dom.cloudResult.style.display = 'block';
+                loadStorageInfo();
+            } else { showMessage(response.message, 'error'); }
+        });
+    });
+}
+
+export function updateGenerateBtnState() {
+    if (state.currentSessionId) {
+        dom.generateBtn.disabled = false;
+        dom.filterBtn.disabled = false;
+    } else {
+        dom.generateBtn.disabled = true;
+        dom.filterBtn.disabled = true;
+    }
+    updateMaskGenerateBtnState();
 }
 
 function saveCurrentHistory(params) {

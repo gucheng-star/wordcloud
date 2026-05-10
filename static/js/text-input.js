@@ -1,6 +1,7 @@
 import { state, dom } from './state.js';
 import { postJSON, showMessage } from './utils.js';
 import { renderWordFreq } from './filter.js';
+import { updateGenerateBtnState } from './cloud.js';
 
 export function initTextInput() {
     var textInput = document.getElementById('text-input');
@@ -29,9 +30,9 @@ export function initTextInput() {
                 state.currentRemovedWords = response.removed_words || [];
                 state.currentOriginalName = '直接输入文本';
                 renderWordFreq(state.currentOriginalWordFreq, state.currentRemovedWords);
-                dom.cloudArea.style.display = 'block';
                 dom.cloudResult.style.display = 'none';
                 dom.processArea.style.display = 'none';
+                updateGenerateBtnState();
             } else {
                 showMessage(response.message, 'error');
             }

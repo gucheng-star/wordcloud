@@ -22,10 +22,6 @@
 .btn-filter:hover { background-color: #d35400; }
 .btn-filter:disabled { background-color: #95a5a6; cursor: not-allowed; }
 
-.btn-generate { display: block; width: 100%; padding: 10px 0; background-color: #8e44ad; color: #fff; border: none; border-radius: 6px; font-size: 15px; cursor: pointer; transition: background-color 0.2s; }
-.btn-generate:hover { background-color: #7d3c98; }
-.btn-generate:disabled { background-color: #95a5a6; cursor: not-allowed; }
-
 .btn-download {
     display: inline-block;
     margin-top: 14px;

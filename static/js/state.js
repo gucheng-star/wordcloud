@@ -4,7 +4,10 @@ export const state = {
     currentSessionId: '',
     currentWordFreq: {},
     currentOriginalWordFreq: {},
-    currentRemovedWords: []
+    currentRemovedWords: [],
+    maskFilename: '',
+    grayscaleFilename: '',
+    grayscaleReady: false
 };
 
 export const dom = {
@@ -19,5 +22,8 @@ export const dom = {
     cloudImage: document.getElementById('cloud-image'),
     downloadBtn: document.getElementById('download-btn'),
     historyList: document.getElementById('history-list'),
-    storageInfo: document.getElementById('storage-info')
+    storageInfo: document.getElementById('storage-info'),
+    generateBtn: document.getElementById('generate-btn'),
+    maskGenerateBtn: document.getElementById('mask-generate-btn'),
+    filterBtn: document.getElementById('filter-btn')
 };

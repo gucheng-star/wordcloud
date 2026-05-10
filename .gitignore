@@ -5,10 +5,15 @@ venv/
 __pycache__/
 *.pyc
 *.pyo
+
 # 测试文件
 test/
+
 # 用户上传文件（运行时生成）
 uploads/*.txt
+
+# Mask 图片（运行时生成）
+uploads/masks/
 
 # 词云输出图片（运行时生成）
 outputs/*.png

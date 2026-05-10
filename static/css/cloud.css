@@ -8,6 +8,39 @@
 .param-select { flex: 1; padding: 6px 10px; border: 1px solid #bdc3c7; border-radius: 4px; font-size: 14px; background: #fff; cursor: pointer; }
 .param-select:focus { border-color: #3498db; outline: none; }
 
+.cloud-buttons {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 14px;
+}
+
+.cloud-buttons .btn-generate,
+.cloud-buttons .btn-mask-generate {
+    flex: 1;
+    padding: 10px 0;
+    border: none;
+    border-radius: 6px;
+    font-size: 15px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.btn-generate {
+    background-color: #8e44ad;
+    color: #fff;
+}
+
+.btn-generate:hover { background-color: #7d3c98; }
+.btn-generate:disabled { background-color: #95a5a6; cursor: not-allowed; }
+
+.btn-mask-generate {
+    background-color: #2980b9;
+    color: #fff;
+}
+
+.btn-mask-generate:hover { background-color: #2471a3; }
+.btn-mask-generate:disabled { background-color: #95a5a6; cursor: not-allowed; }
+
 .cloud-result { margin-top: 18px; text-align: center; }
 .cloud-image { max-width: 100%; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
 
