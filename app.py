@@ -81,7 +81,7 @@ import os
 import uuid
 from flask import Flask, render_template, request, jsonify, send_from_directory
 from werkzeug.utils import secure_filename
-from utils.text_processor import process_file
+from utils.text_processor import process_file, process_text_string
 from utils.filter_processor import filter_word_freq
 from utils.cloud_generator import generate_wordcloud
 from utils.history_manager import save_history, load_history, delete_history, get_history_by_id
@@ -100,11 +100,15 @@ app.config['OUTPUT_FOLDER'] = OUTPUT_FOLDER
 # 允许上传的文件扩展名（白名单，只允许 txt 文件）
 ALLOWED_EXTENSIONS = {'txt'}
 
+MAX_TEXT_LENGTH = 5000000
+
 # 最大上传文件大小限制（16MB）
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 
 # ========== 内存缓存：用 session_id 存储词频数据 ==========
-# 结构: { "abc123": {"word_freq": {...}}, ... }
+# 结构: { "abc123": {"word_freq": {...}, "original_word_freq": {...}, "removed_words": [...]}, ... }
+# original_word_freq: 未经用户过滤的原始词频（用于前端显示完整列表）
+# removed_words: 用户已选择过滤的词列表（用于前端标记已过滤状态）
 word_freq_cache = {}
 
 
@@ -209,12 +213,17 @@ def process_text():
 
         # 生成 session_id，存入内存缓存
         session_id = uuid.uuid4().hex[:8]
-        word_freq_cache[session_id] = {'word_freq': word_freq}
+        word_freq_cache[session_id] = {
+            'word_freq': word_freq,
+            'original_word_freq': dict(word_freq),
+            'removed_words': []
+        }
 
         return jsonify({
             'status': 'success',
             'session_id': session_id,
-            'word_freq': word_freq
+            'word_freq': word_freq,
+            'removed_words': []
         })
     except UnicodeDecodeError:
         return jsonify({'status': 'error', 'message': '文件编码错误，请使用 UTF-8 编码的文本文件'})
@@ -255,16 +264,26 @@ def filter_words():
     if not isinstance(remove_words, list):
         return jsonify({'status': 'error', 'message': 'remove_words 必须是列表格式'})
 
-    # 执行过滤
-    current_freq = word_freq_cache[session_id]['word_freq']
-    filtered = filter_word_freq(current_freq, remove_words)
+    # 执行过滤：基于原始词频，移除当前标记的词
+    current_freq = word_freq_cache[session_id]['original_word_freq']
+
+    # 直接使用前端传入的 remove_words 作为完整的过滤状态
+    # 前端每次发送的是当前所有被标记为过滤的词（不是增量）
+    # 这样用户取消过滤某个词后，该词会自动回到词频中
+    all_removed = set(remove_words)
+
+    # 基于原始词频过滤
+    filtered = filter_word_freq(current_freq, list(all_removed))
 
     # 更新缓存
     word_freq_cache[session_id]['word_freq'] = filtered
+    word_freq_cache[session_id]['removed_words'] = list(all_removed)
 
     return jsonify({
         'status': 'success',
-        'word_freq': filtered
+        'word_freq': filtered,
+        'original_word_freq': current_freq,
+        'removed_words': list(all_removed)
     })
 
 
@@ -380,7 +399,11 @@ def cache_word_freq():
         return jsonify({'status': 'error', 'message': '词频数据不能为空'})
 
     session_id = uuid.uuid4().hex[:8]
-    word_freq_cache[session_id] = {'word_freq': data['word_freq']}
+    word_freq_cache[session_id] = {
+        'word_freq': data['word_freq'],
+        'original_word_freq': dict(data['word_freq']),
+        'removed_words': []
+    }
 
     return jsonify({'status': 'success', 'session_id': session_id})
 
@@ -486,6 +509,141 @@ def delete_history_route():
         return jsonify({'status': 'success'})
     else:
         return jsonify({'status': 'error', 'message': '记录不存在'})
+
+
+# ========== 文本输入接口 ==========
+
+@app.route('/process_text_input', methods=['POST'])
+def process_text_input():
+    """
+    直接处理文本字符串接口：分词 + 词频统计 + 存入缓存。
+
+    用于"直接输入文本"功能，不需要上传文件。
+
+    请求 JSON:
+        {"text": "用户输入的文本内容"}
+
+    返回 JSON:
+        成功: {"status": "success", "session_id": "abc123", "word_freq": {...}, "removed_words": []}
+        失败: {"status": "error", "message": "错误原因"}
+    """
+    data = request.get_json()
+
+    if not data or 'text' not in data:
+        return jsonify({'status': 'error', 'message': '缺少 text 参数'})
+
+    text = data['text']
+
+    # 输入验证：检查是否为空
+    if not isinstance(text, str):
+        return jsonify({'status': 'error', 'message': 'text 必须是字符串'})
+
+    if not text.strip():
+        return jsonify({'status': 'error', 'message': '文本内容不能为空'})
+
+    # 输入验证：长度限制
+    if len(text) > MAX_TEXT_LENGTH:
+        return jsonify({'status': 'error', 'message': '文本内容过长，请控制在 500 万字符以内'})
+
+    try:
+        word_freq = process_text_string(text)
+
+        session_id = uuid.uuid4().hex[:8]
+        word_freq_cache[session_id] = {
+            'word_freq': word_freq,
+            'original_word_freq': dict(word_freq),
+            'removed_words': []
+        }
+
+        return jsonify({
+            'status': 'success',
+            'session_id': session_id,
+            'word_freq': word_freq,
+            'removed_words': []
+        })
+    except ValueError as e:
+        return jsonify({'status': 'error', 'message': str(e)})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': f'处理失败：{str(e)}'})
+
+
+# ========== 数据管理接口 ==========
+
+@app.route('/storage_info', methods=['GET'])
+def storage_info():
+    """
+    获取存储空间使用情况接口。
+
+    返回 JSON:
+        {"status": "success", "uploads": {"files": N, "size_kb": N}, "outputs": {"files": N, "size_kb": N}}
+    """
+    def get_dir_info(dir_path):
+        """获取目录的文件数量和总大小。"""
+        total_size = 0
+        file_count = 0
+        if os.path.exists(dir_path):
+            for f in os.listdir(dir_path):
+                fp = os.path.join(dir_path, f)
+                if os.path.isfile(fp):
+                    total_size += os.path.getsize(fp)
+                    file_count += 1
+        return {'files': file_count, 'size_kb': round(total_size / 1024, 1)}
+
+    return jsonify({
+        'status': 'success',
+        'uploads': get_dir_info(UPLOAD_FOLDER),
+        'outputs': get_dir_info(OUTPUT_FOLDER)
+    })
+
+
+@app.route('/clean_uploads', methods=['POST'])
+def clean_uploads():
+    """
+    清理 uploads 目录中的文本文件接口。
+
+    返回 JSON:
+        成功: {"status": "success", "deleted": N, "freed_kb": N}
+    """
+    deleted = 0
+    freed = 0
+
+    for f in os.listdir(UPLOAD_FOLDER):
+        fp = os.path.join(UPLOAD_FOLDER, f)
+        if os.path.isfile(fp) and f != '.gitkeep':
+            freed += os.path.getsize(fp)
+            os.remove(fp)
+            deleted += 1
+
+    return jsonify({
+        'status': 'success',
+        'deleted': deleted,
+        'freed_kb': round(freed / 1024, 1)
+    })
+
+
+@app.route('/clean_outputs', methods=['POST'])
+def clean_outputs():
+    """
+    清理 outputs 目录中的图片文件接口。
+
+    返回 JSON:
+        成功: {"status": "success", "deleted": N, "freed_kb": N}
+    """
+    deleted = 0
+    freed = 0
+
+    for f in os.listdir(OUTPUT_FOLDER):
+        fp = os.path.join(OUTPUT_FOLDER, f)
+        if os.path.isfile(fp) and f != '.gitkeep':
+            freed += os.path.getsize(fp)
+            os.remove(fp)
+            deleted += 1
+
+    return jsonify({
+        'status': 'success',
+        'deleted': deleted,
+        'freed_kb': round(freed / 1024, 1)
+    })
 
 
 if __name__ == '__main__':

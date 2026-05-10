@@ -9,10 +9,16 @@
 <body>
     <div class="container">
         <h1>中文词云工具</h1>
-        <p class="subtitle">上传中文文本，生成专属词云图</p>
+        <p class="subtitle">上传中文文本或直接输入，生成专属词云图</p>
+
+        <!-- 输入方式切换 -->
+        <div class="input-tabs">
+            <button type="button" class="tab-btn active" id="tab-file">上传文件</button>
+            <button type="button" class="tab-btn" id="tab-text">直接输入</button>
+        </div>
 
         <!-- 文件上传区域 -->
-        <div class="upload-area">
+        <div class="upload-area" id="panel-file">
             <form id="upload-form" enctype="multipart/form-data">
                 <div class="file-select-zone" id="file-select-zone">
                     <input type="file" id="file-input" name="file" accept=".txt">
@@ -26,6 +32,15 @@
                 </div>
                 <button type="submit" id="upload-btn" class="btn-upload" disabled>上传文件</button>
             </form>
+        </div>
+
+        <!-- 直接输入文本区域 -->
+        <div class="text-input-area" id="panel-text" style="display:none;">
+            <textarea id="text-input" class="text-input" placeholder="请在此输入中文文本内容..." rows="6"></textarea>
+            <div class="text-input-footer">
+                <span class="char-count" id="char-count">0 字</span>
+                <button type="button" id="text-submit-btn" class="btn-upload">开始分析</button>
+            </div>
         </div>
 
         <div id="message" class="message"></div>
@@ -45,7 +60,7 @@
                     <button type="button" id="deselect-all-btn" class="btn-small">取消全选</button>
                 </div>
             </div>
-            <p class="result-hint">勾选不需要进入词云的词，然后点击"确认过滤"</p>
+            <p class="result-hint">点击词语标签切换过滤状态，灰色划线 = 已过滤（不参与词云）</p>
             <div id="word-freq-list" class="word-freq-list"></div>
             <button type="button" id="filter-btn" class="btn-filter">确认过滤</button>
         </div>
@@ -87,16 +102,24 @@
             </div>
         </div>
 
+        <!-- 数据管理区域 -->
+        <div class="manage-area">
+            <h3>数据管理</h3>
+            <div id="storage-info" class="storage-info">加载中...</div>
+            <div class="manage-actions">
+                <button type="button" id="clean-uploads-btn" class="btn-manage">清理上传文件</button>
+                <button type="button" id="clean-outputs-btn" class="btn-manage">清理词云图片</button>
+            </div>
+        </div>
+
         <!-- 使用说明 -->
         <div class="info-box">
             <h3>使用说明</h3>
             <ul>
-                <li>上传 <strong>.txt</strong> 格式的中文文本文件</li>
-                <li>点击"开始分词分析"查看词频统计</li>
-                <li>勾选不需要的词，点击"确认过滤"移除</li>
+                <li>支持上传 <strong>.txt</strong> 文件或直接输入文本</li>
+                <li>点击词语标签切换过滤状态，灰色划线 = 已过滤</li>
                 <li>调整词云参数后，点击"生成词云"</li>
                 <li>生成成功后自动保存到历史记录</li>
-                <li>可从历史记录中重新生成词云</li>
             </ul>
         </div>
     </div>
@@ -126,16 +149,75 @@
         var cloudResult = document.getElementById('cloud-result');
         var cloudImage = document.getElementById('cloud-image');
         var historyList = document.getElementById('history-list');
+        var textInput = document.getElementById('text-input');
+        var charCount = document.getElementById('char-count');
+        var textSubmitBtn = document.getElementById('text-submit-btn');
+        var tabFile = document.getElementById('tab-file');
+        var tabText = document.getElementById('tab-text');
+        var panelFile = document.getElementById('panel-file');
+        var panelText = document.getElementById('panel-text');
+        var storageInfo = document.getElementById('storage-info');
+        var cleanUploadsBtn = document.getElementById('clean-uploads-btn');
+        var cleanOutputsBtn = document.getElementById('clean-outputs-btn');
 
         var currentFilename = '';
         var currentOriginalName = '';
         var currentSessionId = '';
         var currentWordFreq = {};
+        var currentOriginalWordFreq = {};
+        var currentRemovedWords = [];
 
-        // 页面加载时获取历史记录
         loadHistoryList();
+        loadStorageInfo();
 
-        // 文件选择交互
+        // ========== 输入方式切换 ==========
+        tabFile.addEventListener('click', function() {
+            tabFile.classList.add('active');
+            tabText.classList.remove('active');
+            panelFile.style.display = '';
+            panelText.style.display = 'none';
+        });
+
+        tabText.addEventListener('click', function() {
+            tabText.classList.add('active');
+            tabFile.classList.remove('active');
+            panelText.style.display = '';
+            panelFile.style.display = 'none';
+        });
+
+        // ========== 文本输入 ==========
+        textInput.addEventListener('input', function() {
+            charCount.textContent = textInput.value.length + ' 字';
+        });
+
+        textSubmitBtn.addEventListener('click', function() {
+            var text = textInput.value.trim();
+            if (!text) { showMessage('请输入文本内容', 'error'); return; }
+
+            textSubmitBtn.disabled = true;
+            textSubmitBtn.textContent = '分析中...';
+
+            postJSON('/process_text_input', { text: text }, function(response) {
+                textSubmitBtn.disabled = false;
+                textSubmitBtn.textContent = '开始分析';
+                if (response.status === 'success') {
+                    showMessage('分词分析完成！', 'success');
+                    currentSessionId = response.session_id;
+                    currentWordFreq = response.word_freq;
+                    currentOriginalWordFreq = response.original_word_freq || response.word_freq;
+                    currentRemovedWords = response.removed_words || [];
+                    currentOriginalName = '直接输入文本';
+                    renderWordFreq(currentOriginalWordFreq, currentRemovedWords);
+                    cloudArea.style.display = 'block';
+                    cloudResult.style.display = 'none';
+                    processArea.style.display = 'none';
+                } else {
+                    showMessage(response.message, 'error');
+                }
+            });
+        });
+
+        // ========== 文件上传 ==========
         fileSelectZone.addEventListener('click', function() { fileInput.click(); });
 
         fileInput.addEventListener('change', function() {
@@ -144,9 +226,7 @@
                 filePreview.style.display = 'flex';
                 fileSelectZone.style.display = 'none';
                 uploadBtn.disabled = false;
-            } else {
-                resetFileSelect();
-            }
+            } else { resetFileSelect(); }
         });
 
         previewRemove.addEventListener('click', function() { resetFileSelect(); });
@@ -159,20 +239,16 @@
             uploadBtn.disabled = true;
         }
 
-        // 上传文件
         uploadForm.addEventListener('submit', function(event) {
             event.preventDefault();
-            if (fileInput.files.length === 0) { showMessage('请先选择一个文件', 'error'); return; }
-
+            if (fileInput.files.length === 0) { showMessage('请先选择文件', 'error'); return; }
             uploadBtn.disabled = true;
             uploadBtn.textContent = '上传中...';
 
             var formData = new FormData();
             formData.append('file', fileInput.files[0]);
-
             var xhr = new XMLHttpRequest();
             xhr.open('POST', '/upload_txt', true);
-
             xhr.onload = function() {
                 uploadBtn.textContent = '上传文件';
                 if (xhr.status === 200) {
@@ -186,32 +262,18 @@
                         resultArea.style.display = 'none';
                         cloudArea.style.display = 'none';
                         resetFileSelect();
-                    } else {
-                        showMessage(response.message, 'error');
-                        uploadBtn.disabled = false;
-                    }
-                } else {
-                    showMessage('服务器错误', 'error');
-                    uploadBtn.disabled = false;
-                }
+                    } else { showMessage(response.message, 'error'); uploadBtn.disabled = false; }
+                } else { showMessage('服务器错误', 'error'); uploadBtn.disabled = false; }
             };
-
-            xhr.onerror = function() {
-                uploadBtn.textContent = '上传文件';
-                uploadBtn.disabled = false;
-                showMessage('网络错误', 'error');
-            };
-
+            xhr.onerror = function() { uploadBtn.textContent = '上传文件'; uploadBtn.disabled = false; showMessage('网络错误', 'error'); };
             xhr.send(formData);
         });
 
-        // 分词分析
+        // ========== 分词分析 ==========
         processBtn.addEventListener('click', function() {
             if (!currentFilename) { showMessage('请先上传文件', 'error'); return; }
-
             processBtn.disabled = true;
             processBtn.textContent = '分析中...';
-
             postJSON('/process_text', { filename: currentFilename }, function(response) {
                 processBtn.disabled = false;
                 processBtn.textContent = '开始分词分析';
@@ -219,64 +281,58 @@
                     showMessage('分词分析完成！', 'success');
                     currentSessionId = response.session_id;
                     currentWordFreq = response.word_freq;
-                    renderWordFreq(response.word_freq);
+                    currentOriginalWordFreq = response.original_word_freq || response.word_freq;
+                    currentRemovedWords = response.removed_words || [];
+                    renderWordFreq(currentOriginalWordFreq, currentRemovedWords);
                     cloudArea.style.display = 'block';
                     cloudResult.style.display = 'none';
-                } else {
-                    showMessage(response.message, 'error');
-                }
+                } else { showMessage(response.message, 'error'); }
             });
         });
 
-        // 全选 / 取消全选
+        // ========== 全选/取消全选 ==========
         selectAllBtn.addEventListener('click', function() {
-            var cbs = wordFreqList.querySelectorAll('input[type="checkbox"]');
-            for (var i = 0; i < cbs.length; i++) { cbs[i].checked = true; }
+            currentRemovedWords = Object.keys(currentOriginalWordFreq);
+            renderWordFreq(currentOriginalWordFreq, currentRemovedWords);
         });
 
         deselectAllBtn.addEventListener('click', function() {
-            var cbs = wordFreqList.querySelectorAll('input[type="checkbox"]');
-            for (var i = 0; i < cbs.length; i++) { cbs[i].checked = false; }
+            currentRemovedWords = [];
+            renderWordFreq(currentOriginalWordFreq, currentRemovedWords);
         });
 
-        // 确认过滤
+        // ========== 确认过滤 ==========
         filterBtn.addEventListener('click', function() {
-            var removeWords = [];
-            var cbs = wordFreqList.querySelectorAll('input[type="checkbox"]:checked');
-            for (var i = 0; i < cbs.length; i++) { removeWords.push(cbs[i].value); }
-
-            if (removeWords.length === 0) { showMessage('请先勾选需要过滤的词', 'error'); return; }
-
             filterBtn.disabled = true;
             filterBtn.textContent = '过滤中...';
-
-            postJSON('/filter_words', { session_id: currentSessionId, remove_words: removeWords }, function(response) {
+            postJSON('/filter_words', { session_id: currentSessionId, remove_words: currentRemovedWords }, function(response) {
                 filterBtn.disabled = false;
                 filterBtn.textContent = '确认过滤';
                 if (response.status === 'success') {
-                    showMessage('过滤完成！已移除 ' + removeWords.length + ' 个词', 'success');
+                    if (currentRemovedWords.length === 0) {
+                        showMessage('已取消所有过滤，所有词将参与词云生成', 'success');
+                    } else {
+                        showMessage('过滤完成！已标记 ' + currentRemovedWords.length + ' 个词', 'success');
+                    }
                     currentWordFreq = response.word_freq;
-                    renderWordFreq(response.word_freq);
-                } else {
-                    showMessage(response.message, 'error');
-                }
+                    currentOriginalWordFreq = response.original_word_freq || currentOriginalWordFreq;
+                    currentRemovedWords = response.removed_words || currentRemovedWords;
+                    renderWordFreq(currentOriginalWordFreq, currentRemovedWords);
+                } else { showMessage(response.message, 'error'); }
             });
         });
 
-        // 生成词云
+        // ========== 生成词云 ==========
         generateBtn.addEventListener('click', function() {
             if (!currentSessionId) { showMessage('请先进行分词分析', 'error'); return; }
-
             generateBtn.disabled = true;
             generateBtn.textContent = '生成中...';
-
             var params = {
                 session_id: currentSessionId,
                 max_font_size: parseInt(maxFontInput.value) || 80,
                 min_font_size: parseInt(minFontInput.value) || 20,
                 color_theme: colorThemeSelect.value
             };
-
             postJSON('/generate_wordcloud', params, function(response) {
                 generateBtn.disabled = false;
                 generateBtn.textContent = '生成词云';
@@ -284,295 +340,201 @@
                     showMessage('词云生成成功！', 'success');
                     cloudImage.src = response.image_url + '?t=' + Date.now();
                     cloudResult.style.display = 'block';
-                    // 生成成功后自动保存历史记录
                     saveCurrentHistory(params);
-                } else {
-                    showMessage(response.message, 'error');
-                }
+                } else { showMessage(response.message, 'error'); }
             });
         });
 
-        // 保存当前词云到历史记录
         function saveCurrentHistory(params) {
             postJSON('/save_history', {
                 word_freq: currentWordFreq,
-                params: {
-                    max_font_size: params.max_font_size,
-                    min_font_size: params.min_font_size,
-                    color_theme: params.color_theme
-                },
+                params: { max_font_size: params.max_font_size, min_font_size: params.min_font_size, color_theme: params.color_theme },
                 filename: currentOriginalName || currentFilename
-            }, function(response) {
-                if (response.status === 'success') {
-                    loadHistoryList();
-                }
-            });
+            }, function(response) { if (response.status === 'success') loadHistoryList(); });
         }
 
-        // ========== 历史记录功能 ==========
-
-        // 加载历史记录列表
-        function loadHistoryList() {
-            var xhr = new XMLHttpRequest();
-            xhr.open('GET', '/history_list', true);
-
-            xhr.onload = function() {
-                if (xhr.status === 200) {
-                    var response = JSON.parse(xhr.responseText);
-                    if (response.status === 'success') {
-                        renderHistoryList(response.history);
-                    }
-                }
-            };
-
-            xhr.send();
-        }
-
-        // 渲染历史记录列表
-        function renderHistoryList(history) {
-            historyList.innerHTML = '';
-
-            if (history.length === 0) {
-                historyList.innerHTML = '<p class="history-empty">暂无历史记录</p>';
-                return;
-            }
-
-            for (var i = 0; i < history.length; i++) {
-                var record = history[i];
-                var item = document.createElement('div');
-                item.className = 'history-item';
-
-                // 左侧信息
-                var info = document.createElement('div');
-                info.className = 'history-info';
-
-                var timeEl = document.createElement('div');
-                timeEl.className = 'history-time';
-                timeEl.textContent = record.time;
-
-                var nameEl = document.createElement('div');
-                nameEl.className = 'history-name';
-                nameEl.textContent = record.filename || '未知文件';
-
-                // 简要词频：显示前3个词
-                var topWords = Object.entries(record.word_freq || {})
-                    .sort(function(a, b) { return b[1] - a[1]; })
-                    .slice(0, 3)
-                    .map(function(w) { return w[0] + '(' + w[1] + ')'; })
-                    .join('、');
-
-                var freqEl = document.createElement('div');
-                freqEl.className = 'history-freq';
-                freqEl.textContent = topWords || '无词频数据';
-
-                info.appendChild(timeEl);
-                info.appendChild(nameEl);
-                info.appendChild(freqEl);
-
-                // 右侧按钮
-                var actions = document.createElement('div');
-                actions.className = 'history-actions';
-
-                var regenBtn = document.createElement('button');
-                regenBtn.className = 'btn-regen';
-                regenBtn.textContent = '重新生成';
-                regenBtn.setAttribute('data-id', record.id);
-
-                var delBtn = document.createElement('button');
-                delBtn.className = 'btn-del';
-                delBtn.textContent = '删除';
-                delBtn.setAttribute('data-id', record.id);
-
-                actions.appendChild(regenBtn);
-                actions.appendChild(delBtn);
-
-                item.appendChild(info);
-                item.appendChild(actions);
-                historyList.appendChild(item);
-            }
-
-            // 绑定按钮事件
-            historyList.querySelectorAll('.btn-regen').forEach(function(btn) {
-                btn.addEventListener('click', function() {
-                    regenerateFromHistory(this.getAttribute('data-id'));
-                });
-            });
-
-            historyList.querySelectorAll('.btn-del').forEach(function(btn) {
-                btn.addEventListener('click', function() {
-                    deleteHistoryRecord(this.getAttribute('data-id'));
-                });
-            });
-        }
-
-        // 从历史记录重新生成词云
-        function regenerateFromHistory(recordId) {
-            postJSON('/load_history', { id: recordId }, function(response) {
-                if (response.status === 'success') {
-                    // 将历史词频写入缓存（通过 session_id 机制）
-                    // 先用历史词频和参数生成词云
-                    var params = response.params || {};
-                    var wordFreq = response.word_freq || {};
-
-                    // 生成一个临时 session_id，把词频写入缓存
-                    postJSON('/process_text', { filename: '__history__' }, function() {});
-
-                    // 直接用历史词频生成词云
-                    // 需要先把词频存入缓存：使用一个特殊方式
-                    // 通过 filter_words 的反向逻辑不行，直接在 generate_wordcloud 中处理
-                    // 最简方案：把历史词频加载到当前会话
-                    currentWordFreq = wordFreq;
-                    currentSessionId = '';
-
-                    // 渲染词频列表
-                    renderWordFreq(wordFreq);
-                    cloudArea.style.display = 'block';
-
-                    // 设置参数
-                    maxFontInput.value = params.max_font_size || 80;
-                    minFontInput.value = params.min_font_size || 20;
-                    colorThemeSelect.value = params.color_theme || 'blue';
-
-                    // 因为没有 session_id，需要先创建一个
-                    // 使用历史词频创建新 session
-                    createSessionFromHistory(wordFreq, params);
-                } else {
-                    showMessage(response.message, 'error');
-                }
-            });
-        }
-
-        // 用历史词频创建新的 session 并生成词云
-        function createSessionFromHistory(wordFreq, params) {
-            // 通过 /process_text 无法直接传入词频
-            // 改用策略：直接调用 generate_wordcloud，但需要 session_id
-            // 最简方案：把历史词频存入 filter_words 的缓存中
-            // 实际方案：新增一个接口太重，改用前端直接展示词频+提示用户重新上传
-            // 更好的方案：利用 process_text 的 session 缓存机制
-            // → 先上传原文件再分词太麻烦
-            // → 最简方案：在 generate_wordcloud 中支持直接传 word_freq
-
-            // 实际最简方案：使用一个特殊的 session_id 存入缓存
-            var tempSessionId = 'hist_' + Date.now();
-
-            // 直接调用后端把词频写入缓存
-            // 但我们没有这样的接口...改用 filter_words 的 trick：
-            // 先创建一个空 session（通过 process_text），然后替换词频
-
-            // 最终方案：直接在前端提示用户点击"生成词云"按钮
-            // 因为词频已经加载到 currentWordFreq，但需要 session_id
-            // → 我们需要一个小接口来把词频写入缓存
-
-            // 最简实现：复用 /save_history 的模式，新增一个 /cache_word_freq 接口
-            // 但这违反"不破坏现有逻辑"原则
-
-            // 实际可行方案：利用现有的 filter_words 接口
-            // 1. 先 process_text 任意文件获得 session_id
-            // 2. 然后用 filter_words 替换词频
-
-            // 但我们没有任意文件可以 process...
-
-            // 最终最简方案：在 app.py 中加一个轻量接口 /cache_word_freq
-            // 这是最干净的方案，只做一件事：把词频写入缓存返回 session_id
-
-            postJSON('/cache_word_freq', { word_freq: wordFreq }, function(response) {
-                if (response.status === 'success') {
-                    currentSessionId = response.session_id;
-                    currentWordFreq = wordFreq;
-                    showMessage('历史记录已加载，点击"生成词云"', 'success');
-                } else {
-                    showMessage('加载失败：' + response.message, 'error');
-                }
-            });
-        }
-
-        // 删除历史记录
-        function deleteHistoryRecord(recordId) {
-            if (!confirm('确定删除这条历史记录吗？')) return;
-
-            postJSON('/delete_history', { id: recordId }, function(response) {
-                if (response.status === 'success') {
-                    showMessage('已删除', 'success');
-                    loadHistoryList();
-                } else {
-                    showMessage(response.message, 'error');
-                }
-            });
-        }
-
-        // ========== 通用工具函数 ==========
-
-        // 封装 POST JSON 请求
-        function postJSON(url, data, callback) {
-            var xhr = new XMLHttpRequest();
-            xhr.open('POST', url, true);
-            xhr.setRequestHeader('Content-Type', 'application/json');
-
-            xhr.onload = function() {
-                if (xhr.status === 200) {
-                    callback(JSON.parse(xhr.responseText));
-                } else {
-                    callback({ status: 'error', message: '服务器错误' });
-                }
-            };
-
-            xhr.onerror = function() {
-                callback({ status: 'error', message: '网络错误' });
-            };
-
-            xhr.send(JSON.stringify(data));
-        }
-
-        // 渲染词频列表
-        function renderWordFreq(wordFreq) {
+        // ========== 渲染词频列表（按钮标签式） ==========
+        function renderWordFreq(originalWordFreq, removedWords) {
             wordFreqList.innerHTML = '';
-            var items = Object.entries(wordFreq).sort(function(a, b) { return b[1] - a[1]; });
-
+            var items = Object.entries(originalWordFreq).sort(function(a, b) { return b[1] - a[1]; });
             if (items.length === 0) {
                 wordFreqList.innerHTML = '<p class="empty-hint">所有词已被过滤</p>';
                 resultArea.style.display = 'block';
                 return;
             }
-
-            var maxFreq = items[0][1];
-
+            var removedSet = new Set(removedWords || []);
             for (var i = 0; i < items.length; i++) {
                 var word = items[i][0];
                 var freq = items[i][1];
+                var isRemoved = removedSet.has(word);
 
-                var item = document.createElement('div');
-                item.className = 'freq-item';
+                var tag = document.createElement('button');
+                tag.type = 'button';
+                tag.className = 'word-tag' + (isRemoved ? ' removed' : '');
+                tag.setAttribute('data-word', word);
+                tag.innerHTML = word + ' <span class="tag-count">' + freq + '</span>';
 
-                var checkbox = document.createElement('input');
-                checkbox.type = 'checkbox';
-                checkbox.className = 'freq-checkbox';
-                checkbox.value = word;
-                checkbox.id = 'cb-' + i;
+                tag.addEventListener('click', (function(w) {
+                    return function() { toggleWord(w); };
+                })(word));
 
-                var label = document.createElement('label');
-                label.className = 'freq-word';
-                label.textContent = word;
-                label.setAttribute('for', 'cb-' + i);
-
-                var bar = document.createElement('div');
-                bar.className = 'freq-bar';
-                bar.style.width = Math.max(freq / maxFreq * 100, 5) + '%';
-
-                var count = document.createElement('span');
-                count.className = 'freq-count';
-                count.textContent = freq;
-
-                item.appendChild(checkbox);
-                item.appendChild(label);
-                item.appendChild(bar);
-                item.appendChild(count);
-                wordFreqList.appendChild(item);
+                wordFreqList.appendChild(tag);
             }
-
             resultArea.style.display = 'block';
         }
 
-        // 提示消息
+        function toggleWord(word) {
+            var idx = currentRemovedWords.indexOf(word);
+            if (idx === -1) {
+                currentRemovedWords.push(word);
+            } else {
+                currentRemovedWords.splice(idx, 1);
+            }
+            renderWordFreq(currentOriginalWordFreq, currentRemovedWords);
+        }
+
+        // ========== 历史记录 ==========
+        function loadHistoryList() {
+            var xhr = new XMLHttpRequest();
+            xhr.open('GET', '/history_list', true);
+            xhr.onload = function() {
+                if (xhr.status === 200) {
+                    var response = JSON.parse(xhr.responseText);
+                    if (response.status === 'success') renderHistoryList(response.history);
+                }
+            };
+            xhr.send();
+        }
+
+        function renderHistoryList(history) {
+            historyList.innerHTML = '';
+            if (history.length === 0) { historyList.innerHTML = '<p class="history-empty">暂无历史记录</p>'; return; }
+            for (var i = 0; i < history.length; i++) {
+                var record = history[i];
+                var item = document.createElement('div');
+                item.className = 'history-item';
+                var info = document.createElement('div');
+                info.className = 'history-info';
+                var timeEl = document.createElement('div');
+                timeEl.className = 'history-time';
+                timeEl.textContent = record.time;
+                var nameEl = document.createElement('div');
+                nameEl.className = 'history-name';
+                nameEl.textContent = record.filename || '未知文件';
+                var topWords = Object.entries(record.word_freq || {}).sort(function(a, b) { return b[1] - a[1]; }).slice(0, 3).map(function(w) { return w[0] + '(' + w[1] + ')'; }).join('、');
+                var freqEl = document.createElement('div');
+                freqEl.className = 'history-freq';
+                freqEl.textContent = topWords || '无词频数据';
+                info.appendChild(timeEl);
+                info.appendChild(nameEl);
+                info.appendChild(freqEl);
+                var actions = document.createElement('div');
+                actions.className = 'history-actions';
+                var regenBtn = document.createElement('button');
+                regenBtn.className = 'btn-regen';
+                regenBtn.textContent = '重新生成';
+                regenBtn.setAttribute('data-id', record.id);
+                var delBtn = document.createElement('button');
+                delBtn.className = 'btn-del';
+                delBtn.textContent = '删除';
+                delBtn.setAttribute('data-id', record.id);
+                actions.appendChild(regenBtn);
+                actions.appendChild(delBtn);
+                item.appendChild(info);
+                item.appendChild(actions);
+                historyList.appendChild(item);
+            }
+            historyList.querySelectorAll('.btn-regen').forEach(function(btn) {
+                btn.addEventListener('click', function() { regenerateFromHistory(this.getAttribute('data-id')); });
+            });
+            historyList.querySelectorAll('.btn-del').forEach(function(btn) {
+                btn.addEventListener('click', function() { deleteHistoryRecord(this.getAttribute('data-id')); });
+            });
+        }
+
+        function regenerateFromHistory(recordId) {
+            postJSON('/load_history', { id: recordId }, function(response) {
+                if (response.status === 'success') {
+                    var params = response.params || {};
+                    var wordFreq = response.word_freq || {};
+                    currentWordFreq = wordFreq;
+                    currentOriginalWordFreq = dict(wordFreq);
+                    currentRemovedWords = [];
+                    renderWordFreq(currentOriginalWordFreq, currentRemovedWords);
+                    cloudArea.style.display = 'block';
+                    cloudResult.style.display = 'none';
+                    maxFontInput.value = params.max_font_size || 80;
+                    minFontInput.value = params.min_font_size || 20;
+                    colorThemeSelect.value = params.color_theme || 'blue';
+                    postJSON('/cache_word_freq', { word_freq: wordFreq }, function(resp) {
+                        if (resp.status === 'success') {
+                            currentSessionId = resp.session_id;
+                            showMessage('历史记录已加载，点击"生成词云"', 'success');
+                        }
+                    });
+                } else { showMessage(response.message, 'error'); }
+            });
+        }
+
+        function dict(obj) { var o = {}; for (var k in obj) { if (obj.hasOwnProperty(k)) o[k] = obj[k]; } return o; }
+
+        function deleteHistoryRecord(recordId) {
+            if (!confirm('确定删除这条历史记录吗？')) return;
+            postJSON('/delete_history', { id: recordId }, function(response) {
+                if (response.status === 'success') { showMessage('已删除', 'success'); loadHistoryList(); }
+                else { showMessage(response.message, 'error'); }
+            });
+        }
+
+        // ========== 数据管理 ==========
+        function loadStorageInfo() {
+            var xhr = new XMLHttpRequest();
+            xhr.open('GET', '/storage_info', true);
+            xhr.onload = function() {
+                if (xhr.status === 200) {
+                    var r = JSON.parse(xhr.responseText);
+                    if (r.status === 'success') {
+                        storageInfo.innerHTML = '上传文件: <strong>' + r.uploads.files + '</strong> 个 (' + r.uploads.size_kb + ' KB) &nbsp;&nbsp; 词云图片: <strong>' + r.outputs.files + '</strong> 个 (' + r.outputs.size_kb + ' KB)';
+                    }
+                }
+            };
+            xhr.send();
+        }
+
+        cleanUploadsBtn.addEventListener('click', function() {
+            if (!confirm('确定清理所有上传的文本文件吗？此操作不可恢复。')) return;
+            postJSON('/clean_uploads', {}, function(response) {
+                if (response.status === 'success') {
+                    showMessage('已清理 ' + response.deleted + ' 个文件，释放 ' + response.freed_kb + ' KB', 'success');
+                    loadStorageInfo();
+                }
+            });
+        });
+
+        cleanOutputsBtn.addEventListener('click', function() {
+            if (!confirm('确定清理所有词云图片吗？此操作不可恢复。')) return;
+            postJSON('/clean_outputs', {}, function(response) {
+                if (response.status === 'success') {
+                    showMessage('已清理 ' + response.deleted + ' 个文件，释放 ' + response.freed_kb + ' KB', 'success');
+                    loadStorageInfo();
+                    cloudResult.style.display = 'none';
+                }
+            });
+        });
+
+        // ========== 工具函数 ==========
+        function postJSON(url, data, callback) {
+            var xhr = new XMLHttpRequest();
+            xhr.open('POST', url, true);
+            xhr.setRequestHeader('Content-Type', 'application/json');
+            xhr.onload = function() {
+                if (xhr.status === 200) callback(JSON.parse(xhr.responseText));
+                else callback({ status: 'error', message: '服务器错误' });
+            };
+            xhr.onerror = function() { callback({ status: 'error', message: '网络错误' }); };
+            xhr.send(JSON.stringify(data));
+        }
+
         function showMessage(text, type) {
             messageBox.textContent = text;
             messageBox.className = 'message ' + type;
