@@ -83,8 +83,8 @@ from flask import Flask, render_template, request, jsonify, send_from_directory
 from werkzeug.utils import secure_filename
 from utils.text_processor import process_file, process_text_string
 from utils.filter_processor import filter_word_freq
-from utils.cloud_generator import generate_wordcloud
-from utils.history_manager import save_history, load_history, delete_history, get_history_by_id
+from utils.cloud_generator import generate_wordcloud, VALID_THEMES
+from utils.history_manager import save_history, load_history, delete_history, get_history_by_id, clear_all_history
 
 # 创建 Flask 应用实例
 app = Flask(__name__)
@@ -297,7 +297,10 @@ def generate_wordcloud_route():
             "session_id": "abc123",
             "max_font_size": 80,
             "min_font_size": 20,
-            "color_theme": "blue"
+            "color_theme": "blue",
+            "color_hex": "#3366ff",
+            "width": 800,
+            "height": 600
         }
 
     返回 JSON:
@@ -311,7 +314,6 @@ def generate_wordcloud_route():
 
     session_id = data['session_id']
 
-    # 从缓存中读取词频
     if session_id not in word_freq_cache:
         return jsonify({'status': 'error', 'message': '会话已过期，请重新上传文件'})
 
@@ -320,25 +322,33 @@ def generate_wordcloud_route():
     if not word_freq:
         return jsonify({'status': 'error', 'message': '词频数据为空，无法生成词云'})
 
-    # 读取参数（带默认值）
     max_font_size = data.get('max_font_size', 80)
     min_font_size = data.get('min_font_size', 20)
     color_theme = data.get('color_theme', 'blue')
+    color_hex = data.get('color_hex', '')
+    width = data.get('width', 800)
+    height = data.get('height', 600)
 
-    # 参数校验
     try:
         max_font_size = int(max_font_size)
         min_font_size = int(min_font_size)
+        width = int(width)
+        height = int(height)
     except (ValueError, TypeError):
-        return jsonify({'status': 'error', 'message': '字号参数必须为整数'})
+        return jsonify({'status': 'error', 'message': '字号和尺寸参数必须为整数'})
 
     if max_font_size < min_font_size:
         return jsonify({'status': 'error', 'message': '最大字号不能小于最小字号'})
 
-    if color_theme not in ['blue', 'green', 'red', 'purple', 'random']:
-        return jsonify({'status': 'error', 'message': '不支持的颜色主题，可选：blue/green/red/purple/random'})
+    if color_theme not in VALID_THEMES:
+        return jsonify({'status': 'error', 'message': f'不支持的颜色主题，可选：{" / ".join(VALID_THEMES)}'})
 
-    # 生成输出文件名
+    if width < 200 or width > 4000:
+        return jsonify({'status': 'error', 'message': '宽度范围：200 ~ 4000 像素'})
+
+    if height < 200 or height > 4000:
+        return jsonify({'status': 'error', 'message': '高度范围：200 ~ 4000 像素'})
+
     output_filename = f'wordcloud_{session_id}.png'
     output_path = os.path.join(app.config['OUTPUT_FOLDER'], output_filename)
 
@@ -348,7 +358,10 @@ def generate_wordcloud_route():
             output_path=output_path,
             max_font_size=max_font_size,
             min_font_size=min_font_size,
-            color_theme=color_theme
+            color_theme=color_theme,
+            color_hex=color_hex,
+            width=width,
+            height=height
         )
 
         return jsonify({
@@ -368,6 +381,34 @@ def generate_wordcloud_route():
 def serve_output(filename):
     """提供词云图片的访问路由。"""
     return send_from_directory(app.config['OUTPUT_FOLDER'], filename)
+
+
+@app.route('/download_image/<path:filename>')
+def download_image(filename):
+    """
+    下载词云图片接口。
+
+    触发浏览器下载而非直接显示图片。
+
+    路径参数:
+        filename: 图片文件名，如 wordcloud_abc123.png
+
+    返回:
+        文件下载响应
+    """
+    if not is_safe_filename(filename):
+        return jsonify({'status': 'error', 'message': '文件名无效'}), 400
+
+    filepath = os.path.join(app.config['OUTPUT_FOLDER'], filename)
+    if not os.path.exists(filepath):
+        return jsonify({'status': 'error', 'message': '文件不存在'}), 404
+
+    return send_from_directory(
+        app.config['OUTPUT_FOLDER'],
+        filename,
+        as_attachment=True,
+        download_name=filename
+    )
 
 
 # ========== 历史记录接口 ==========
@@ -511,6 +552,19 @@ def delete_history_route():
         return jsonify({'status': 'error', 'message': '记录不存在'})
 
 
+@app.route('/clear_all_history', methods=['POST'])
+def clear_all_history_route():
+    """
+    清空所有历史记录接口。
+
+    返回 JSON:
+        成功: {"status": "success", "deleted": 5}
+        失败: {"status": "error", "message": "错误原因"}
+    """
+    count = clear_all_history()
+    return jsonify({'status': 'success', 'deleted': count})
+
+
 # ========== 文本输入接口 ==========
 
 @app.route('/process_text_input', methods=['POST'])
@@ -578,13 +632,13 @@ def storage_info():
         {"status": "success", "uploads": {"files": N, "size_kb": N}, "outputs": {"files": N, "size_kb": N}}
     """
     def get_dir_info(dir_path):
-        """获取目录的文件数量和总大小。"""
+        """获取目录的文件数量和总大小（排除 .gitkeep 等隐藏文件）。"""
         total_size = 0
         file_count = 0
         if os.path.exists(dir_path):
             for f in os.listdir(dir_path):
                 fp = os.path.join(dir_path, f)
-                if os.path.isfile(fp):
+                if os.path.isfile(fp) and not f.startswith('.'):
                     total_size += os.path.getsize(fp)
                     file_count += 1
         return {'files': file_count, 'size_kb': round(total_size / 1024, 1)}
@@ -609,7 +663,7 @@ def clean_uploads():
 
     for f in os.listdir(UPLOAD_FOLDER):
         fp = os.path.join(UPLOAD_FOLDER, f)
-        if os.path.isfile(fp) and f != '.gitkeep':
+        if os.path.isfile(fp) and not f.startswith('.'):
             freed += os.path.getsize(fp)
             os.remove(fp)
             deleted += 1
@@ -634,7 +688,7 @@ def clean_outputs():
 
     for f in os.listdir(OUTPUT_FOLDER):
         fp = os.path.join(OUTPUT_FOLDER, f)
-        if os.path.isfile(fp) and f != '.gitkeep':
+        if os.path.isfile(fp) and not f.startswith('.'):
             freed += os.path.getsize(fp)
             os.remove(fp)
             deleted += 1

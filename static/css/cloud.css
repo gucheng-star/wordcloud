@@ -1,0 +1,36 @@
+.cloud-area { background: #fff; border-radius: 10px; padding: 20px 30px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
+.cloud-area h3 { color: #2c3e50; font-size: 16px; margin-bottom: 14px; }
+.cloud-params { display: flex; gap: 14px; margin-bottom: 14px; flex-wrap: wrap; }
+.param-row { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 150px; }
+.param-label { font-size: 14px; color: #555; white-space: nowrap; }
+.param-input { width: 80px; padding: 6px 10px; border: 1px solid #bdc3c7; border-radius: 4px; font-size: 14px; text-align: center; }
+.param-input:focus { border-color: #3498db; outline: none; }
+.param-select { flex: 1; padding: 6px 10px; border: 1px solid #bdc3c7; border-radius: 4px; font-size: 14px; background: #fff; cursor: pointer; }
+.param-select:focus { border-color: #3498db; outline: none; }
+
+.cloud-result { margin-top: 18px; text-align: center; }
+.cloud-image { max-width: 100%; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+
+.color-params { margin-bottom: 14px; }
+.color-hex-row { flex: 1; min-width: 200px; }
+
+.color-hex-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.color-picker {
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    border: 1px solid #bdc3c7;
+    border-radius: 4px;
+    cursor: pointer;
+    background: none;
+}
+
+.color-picker::-webkit-color-swatch-wrapper { padding: 2px; }
+.color-picker::-webkit-color-swatch { border: none; border-radius: 2px; }
+
+.color-hex-input { width: 100px; text-align: left; }

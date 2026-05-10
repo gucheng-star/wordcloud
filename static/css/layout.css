@@ -1,0 +1,62 @@
+.container {
+    display: grid;
+    gap: 18px;
+    grid-template-columns: 1fr;
+    grid-template-areas:
+        "header"
+        "input"
+        "message"
+        "process"
+        "result"
+        "cloud"
+        "history"
+        "manage"
+        "info";
+}
+
+.page-header { grid-area: header; }
+
+.input-section { grid-area: input; }
+
+#message {
+    grid-area: message;
+}
+
+#message[style*="display: none"],
+#message[style*="display:none"] {
+    display: none;
+}
+
+#process-area { grid-area: process; }
+#result-area { grid-area: result; }
+#cloud-area { grid-area: cloud; }
+#history-area { grid-area: history; }
+.manage-area { grid-area: manage; }
+.info-box { grid-area: info; }
+
+@media (min-width: 960px) {
+    .container {
+        grid-template-columns: 1fr 1fr;
+        grid-template-areas:
+            "header header"
+            "input  input"
+            "message message"
+            "process process"
+            "result cloud"
+            "history manage"
+            "info    info";
+    }
+}
+
+@media (min-width: 1400px) {
+    .container {
+        grid-template-columns: 2fr 1fr 1fr;
+        grid-template-areas:
+            "header  header  header"
+            "input   input   input"
+            "message message message"
+            "process process process"
+            "result  result  cloud"
+            "history manage info";
+    }
+}

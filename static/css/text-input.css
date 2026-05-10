@@ -1,0 +1,29 @@
+.text-input-area {
+    background: #fff;
+    border: 1px solid #bdc3c7;
+    border-top: none;
+    border-radius: 0 0 10px 10px;
+    padding: 24px 30px;
+}
+
+.text-input {
+    width: 100%;
+    padding: 12px 14px;
+    border: 1px solid #bdc3c7;
+    border-radius: 6px;
+    font-size: 14px;
+    font-family: inherit;
+    resize: vertical;
+    min-height: 100px;
+}
+
+.text-input:focus { border-color: #3498db; outline: none; }
+
+.text-input-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 12px;
+}
+
+.char-count { font-size: 13px; color: #95a5a6; }

@@ -1,0 +1,29 @@
+.history-area { background: #fff; border-radius: 10px; padding: 20px 30px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
+.history-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+.history-header h3 { color: #2c3e50; font-size: 16px; margin: 0; }
+
+.btn-clear-history {
+    padding: 5px 14px;
+    font-size: 12px;
+    background-color: #fff;
+    color: #e74c3c;
+    border: 1px solid #e74c3c;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-clear-history:hover {
+    background-color: #e74c3c;
+    color: #fff;
+}
+.history-list { max-height: 300px; overflow-y: auto; }
+.history-empty { text-align: center; color: #95a5a6; padding: 16px 0; font-size: 14px; }
+
+.history-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; border: 1px solid #ecf0f1; border-radius: 8px; margin-bottom: 8px; transition: border-color 0.2s; }
+.history-item:hover { border-color: #bdc3c7; }
+.history-info { flex: 1; min-width: 0; }
+.history-time { font-size: 12px; color: #95a5a6; margin-bottom: 3px; }
+.history-name { font-size: 14px; color: #2c3e50; font-weight: bold; margin-bottom: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.history-freq { font-size: 12px; color: #7f8c8d; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.history-actions { display: flex; gap: 6px; flex-shrink: 0; margin-left: 10px; }

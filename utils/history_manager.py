@@ -166,3 +166,16 @@ def get_history_by_id(record_id):
             return record
 
     return None
+
+
+def clear_all_history():
+    """
+    清空所有历史记录。
+
+    返回:
+        int: 被删除的记录数量
+    """
+    history = _read_json()
+    count = len(history)
+    _write_json([])
+    return count
