@@ -4,52 +4,39 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>中文词云工具</title>
-    <!-- 引入外部样式表 -->
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-    <!-- 主容器 -->
     <div class="container">
-        <!-- 页面标题 -->
         <h1>中文词云工具</h1>
-        <p class="subtitle">上传一个中文文本文件，生成词云图</p>
+        <p class="subtitle">上传中文文本，生成专属词云图</p>
 
         <!-- 文件上传区域 -->
         <div class="upload-area">
-            <!--
-                文件上传表单
-                操作流程：选择文件 → 显示文件名 → 点击上传
-            -->
             <form id="upload-form" enctype="multipart/form-data">
-                <!-- 第一步：选择文件区域（点击整个区域触发文件选择） -->
                 <div class="file-select-zone" id="file-select-zone">
                     <input type="file" id="file-input" name="file" accept=".txt">
                     <div class="zone-icon">+</div>
-                    <div class="zone-text" id="zone-text">点击选择 .txt 文件</div>
+                    <div class="zone-text">点击选择 .txt 文件</div>
                 </div>
-
-                <!-- 选中文件后的预览条 -->
                 <div class="file-preview" id="file-preview" style="display:none;">
                     <span class="preview-icon">📄</span>
                     <span class="preview-name" id="preview-name"></span>
                     <button type="button" class="preview-remove" id="preview-remove" title="移除文件">✕</button>
                 </div>
-
-                <!-- 第二步：上传按钮（选择文件后才可点击） -->
                 <button type="submit" id="upload-btn" class="btn-upload" disabled>上传文件</button>
             </form>
         </div>
 
-        <!-- 提示信息区域：显示成功/错误消息 -->
         <div id="message" class="message"></div>
 
-        <!-- 分词处理区域：上传成功后显示 -->
+        <!-- 分词处理区域 -->
         <div id="process-area" class="process-area" style="display:none;">
             <p class="process-info">已上传文件：<strong id="uploaded-filename"></strong></p>
             <button id="process-btn" class="btn-process">开始分词分析</button>
         </div>
 
-        <!-- 词频结果区域：分词完成后显示 -->
+        <!-- 词频结果区域 -->
         <div id="result-area" class="result-area" style="display:none;">
             <div class="result-header">
                 <h3>词频统计结果</h3>
@@ -60,30 +47,55 @@
             </div>
             <p class="result-hint">勾选不需要进入词云的词，然后点击"确认过滤"</p>
             <div id="word-freq-list" class="word-freq-list"></div>
-            <!-- 确认过滤按钮 -->
             <button type="button" id="filter-btn" class="btn-filter">确认过滤</button>
         </div>
 
-        <!-- 文件格式说明 -->
+        <!-- 词云生成区域 -->
+        <div id="cloud-area" class="cloud-area" style="display:none;">
+            <h3>生成词云</h3>
+            <div class="cloud-params">
+                <div class="param-row">
+                    <label class="param-label" for="max-font">最大字号</label>
+                    <input type="number" id="max-font" class="param-input" value="80" min="20" max="200">
+                </div>
+                <div class="param-row">
+                    <label class="param-label" for="min-font">最小字号</label>
+                    <input type="number" id="min-font" class="param-input" value="20" min="10" max="100">
+                </div>
+                <div class="param-row">
+                    <label class="param-label" for="color-theme">颜色主题</label>
+                    <select id="color-theme" class="param-select">
+                        <option value="blue">蓝色</option>
+                        <option value="green">绿色</option>
+                        <option value="red">红色</option>
+                        <option value="purple">紫色</option>
+                        <option value="random">随机彩色</option>
+                    </select>
+                </div>
+            </div>
+            <button type="button" id="generate-btn" class="btn-generate">生成词云</button>
+            <!-- 词云图片展示 -->
+            <div id="cloud-result" class="cloud-result" style="display:none;">
+                <img id="cloud-image" class="cloud-image" alt="词云图">
+            </div>
+        </div>
+
+        <!-- 使用说明 -->
         <div class="info-box">
             <h3>使用说明</h3>
             <ul>
-                <li>目前仅支持上传 <strong>.txt</strong> 格式的文本文件</li>
-                <li>文件内容应为中文文本</li>
-                <li>文件大小限制为 16MB</li>
-                <li>上传的文件将保存到本地 uploads 文件夹</li>
-                <li>上传后点击"开始分词分析"查看词频统计</li>
-                <li>在词频列表中勾选不需要的词，点击"确认过滤"移除</li>
+                <li>上传 <strong>.txt</strong> 格式的中文文本文件</li>
+                <li>点击"开始分词分析"查看词频统计</li>
+                <li>勾选不需要的词，点击"确认过滤"移除</li>
+                <li>调整词云参数后，点击"生成词云"</li>
+                <li>文件大小限制 16MB</li>
             </ul>
         </div>
     </div>
 
-    <!-- JavaScript：处理文件上传、分词和过滤交互 -->
     <script>
-        // 获取 DOM 元素引用
         var fileSelectZone = document.getElementById('file-select-zone');
         var fileInput = document.getElementById('file-input');
-        var zoneText = document.getElementById('zone-text');
         var filePreview = document.getElementById('file-preview');
         var previewName = document.getElementById('preview-name');
         var previewRemove = document.getElementById('preview-remove');
@@ -98,18 +110,21 @@
         var selectAllBtn = document.getElementById('select-all-btn');
         var deselectAllBtn = document.getElementById('deselect-all-btn');
         var filterBtn = document.getElementById('filter-btn');
+        var cloudArea = document.getElementById('cloud-area');
+        var maxFontInput = document.getElementById('max-font');
+        var minFontInput = document.getElementById('min-font');
+        var colorThemeSelect = document.getElementById('color-theme');
+        var generateBtn = document.getElementById('generate-btn');
+        var cloudResult = document.getElementById('cloud-result');
+        var cloudImage = document.getElementById('cloud-image');
 
-        // 记录当前已上传的文件名
         var currentFilename = '';
-        // 记录当前词频数据（用于过滤时发送给后端）
+        var currentSessionId = '';
         var currentWordFreq = {};
 
-        // 点击选择区域 → 触发文件选择
-        fileSelectZone.addEventListener('click', function() {
-            fileInput.click();
-        });
+        // 文件选择交互
+        fileSelectZone.addEventListener('click', function() { fileInput.click(); });
 
-        // 监听文件选择事件
         fileInput.addEventListener('change', function() {
             if (fileInput.files.length > 0) {
                 previewName.textContent = fileInput.files[0].name;
@@ -121,12 +136,8 @@
             }
         });
 
-        // 点击移除按钮 → 清除已选文件
-        previewRemove.addEventListener('click', function() {
-            resetFileSelect();
-        });
+        previewRemove.addEventListener('click', function() { resetFileSelect(); });
 
-        // 重置文件选择区域到初始状态
         function resetFileSelect() {
             fileInput.value = '';
             previewName.textContent = '';
@@ -135,14 +146,10 @@
             uploadBtn.disabled = true;
         }
 
-        // 监听表单提交事件（上传文件）
+        // 上传文件
         uploadForm.addEventListener('submit', function(event) {
             event.preventDefault();
-
-            if (fileInput.files.length === 0) {
-                showMessage('请先选择一个文件', 'error');
-                return;
-            }
+            if (fileInput.files.length === 0) { showMessage('请先选择一个文件', 'error'); return; }
 
             uploadBtn.disabled = true;
             uploadBtn.textContent = '上传中...';
@@ -155,7 +162,6 @@
 
             xhr.onload = function() {
                 uploadBtn.textContent = '上传文件';
-
                 if (xhr.status === 200) {
                     var response = JSON.parse(xhr.responseText);
                     if (response.status === 'success') {
@@ -164,13 +170,14 @@
                         uploadedFilename.textContent = response.original_name || response.filename;
                         processArea.style.display = 'block';
                         resultArea.style.display = 'none';
+                        cloudArea.style.display = 'none';
                         resetFileSelect();
                     } else {
                         showMessage(response.message, 'error');
                         uploadBtn.disabled = false;
                     }
                 } else {
-                    showMessage('服务器错误，请稍后重试', 'error');
+                    showMessage('服务器错误', 'error');
                     uploadBtn.disabled = false;
                 }
             };
@@ -178,18 +185,15 @@
             xhr.onerror = function() {
                 uploadBtn.textContent = '上传文件';
                 uploadBtn.disabled = false;
-                showMessage('网络错误，无法连接到服务器', 'error');
+                showMessage('网络错误', 'error');
             };
 
             xhr.send(formData);
         });
 
-        // 监听"开始分词分析"按钮点击事件
+        // 分词分析
         processBtn.addEventListener('click', function() {
-            if (!currentFilename) {
-                showMessage('请先上传文件', 'error');
-                return;
-            }
+            if (!currentFilename) { showMessage('请先上传文件', 'error'); return; }
 
             processBtn.disabled = true;
             processBtn.textContent = '分析中...';
@@ -201,63 +205,51 @@
             xhr.onload = function() {
                 processBtn.disabled = false;
                 processBtn.textContent = '开始分词分析';
-
                 if (xhr.status === 200) {
                     var response = JSON.parse(xhr.responseText);
                     if (response.status === 'success') {
                         showMessage('分词分析完成！', 'success');
-                        // 保存词频数据
+                        currentSessionId = response.session_id;
                         currentWordFreq = response.word_freq;
                         renderWordFreq(response.word_freq);
+                        cloudArea.style.display = 'block';
+                        cloudResult.style.display = 'none';
                     } else {
                         showMessage(response.message, 'error');
                     }
                 } else {
-                    showMessage('服务器错误，请稍后重试', 'error');
+                    showMessage('服务器错误', 'error');
                 }
             };
 
             xhr.onerror = function() {
                 processBtn.disabled = false;
                 processBtn.textContent = '开始分词分析';
-                showMessage('网络错误，无法连接到服务器', 'error');
+                showMessage('网络错误', 'error');
             };
 
             xhr.send(JSON.stringify({ filename: currentFilename }));
         });
 
-        // 全选按钮：勾选所有词
+        // 全选 / 取消全选
         selectAllBtn.addEventListener('click', function() {
-            var checkboxes = wordFreqList.querySelectorAll('input[type="checkbox"]');
-            for (var i = 0; i < checkboxes.length; i++) {
-                checkboxes[i].checked = true;
-            }
+            var cbs = wordFreqList.querySelectorAll('input[type="checkbox"]');
+            for (var i = 0; i < cbs.length; i++) { cbs[i].checked = true; }
         });
 
-        // 取消全选按钮：取消勾选所有词
         deselectAllBtn.addEventListener('click', function() {
-            var checkboxes = wordFreqList.querySelectorAll('input[type="checkbox"]');
-            for (var i = 0; i < checkboxes.length; i++) {
-                checkboxes[i].checked = false;
-            }
+            var cbs = wordFreqList.querySelectorAll('input[type="checkbox"]');
+            for (var i = 0; i < cbs.length; i++) { cbs[i].checked = false; }
         });
 
-        // 确认过滤按钮：收集勾选的词，发送给后端过滤
+        // 确认过滤
         filterBtn.addEventListener('click', function() {
-            // 收集所有被勾选的词
             var removeWords = [];
-            var checkboxes = wordFreqList.querySelectorAll('input[type="checkbox"]:checked');
-            for (var i = 0; i < checkboxes.length; i++) {
-                removeWords.push(checkboxes[i].value);
-            }
+            var cbs = wordFreqList.querySelectorAll('input[type="checkbox"]:checked');
+            for (var i = 0; i < cbs.length; i++) { removeWords.push(cbs[i].value); }
 
-            // 如果没有勾选任何词，提示用户
-            if (removeWords.length === 0) {
-                showMessage('请先勾选需要过滤的词', 'error');
-                return;
-            }
+            if (removeWords.length === 0) { showMessage('请先勾选需要过滤的词', 'error'); return; }
 
-            // 禁用按钮
             filterBtn.disabled = true;
             filterBtn.textContent = '过滤中...';
 
@@ -268,59 +260,87 @@
             xhr.onload = function() {
                 filterBtn.disabled = false;
                 filterBtn.textContent = '确认过滤';
-
                 if (xhr.status === 200) {
                     var response = JSON.parse(xhr.responseText);
                     if (response.status === 'success') {
                         showMessage('过滤完成！已移除 ' + removeWords.length + ' 个词', 'success');
-                        // 更新词频数据并重新渲染
-                        currentWordFreq = response.filtered_word_freq;
-                        renderWordFreq(response.filtered_word_freq);
+                        currentWordFreq = response.word_freq;
+                        renderWordFreq(response.word_freq);
                     } else {
                         showMessage(response.message, 'error');
                     }
                 } else {
-                    showMessage('服务器错误，请稍后重试', 'error');
+                    showMessage('服务器错误', 'error');
                 }
             };
 
             xhr.onerror = function() {
                 filterBtn.disabled = false;
                 filterBtn.textContent = '确认过滤';
-                showMessage('网络错误，无法连接到服务器', 'error');
+                showMessage('网络错误', 'error');
             };
 
-            // 发送当前词频和要移除的词列表
             xhr.send(JSON.stringify({
-                word_freq: currentWordFreq,
+                session_id: currentSessionId,
                 remove_words: removeWords
             }));
         });
 
-        /**
-         * 渲染词频统计结果到页面（带 checkbox）。
-         *
-         * @param {Object} wordFreq - 词频字典，例如 {"数据": 20, "分析": 15}
-         */
+        // 生成词云
+        generateBtn.addEventListener('click', function() {
+            if (!currentSessionId) { showMessage('请先进行分词分析', 'error'); return; }
+
+            generateBtn.disabled = true;
+            generateBtn.textContent = '生成中...';
+
+            var xhr = new XMLHttpRequest();
+            xhr.open('POST', '/generate_wordcloud', true);
+            xhr.setRequestHeader('Content-Type', 'application/json');
+
+            xhr.onload = function() {
+                generateBtn.disabled = false;
+                generateBtn.textContent = '生成词云';
+                if (xhr.status === 200) {
+                    var response = JSON.parse(xhr.responseText);
+                    if (response.status === 'success') {
+                        showMessage('词云生成成功！', 'success');
+                        cloudImage.src = response.image_url + '?t=' + Date.now();
+                        cloudResult.style.display = 'block';
+                    } else {
+                        showMessage(response.message, 'error');
+                    }
+                } else {
+                    showMessage('服务器错误', 'error');
+                }
+            };
+
+            xhr.onerror = function() {
+                generateBtn.disabled = false;
+                generateBtn.textContent = '生成词云';
+                showMessage('网络错误', 'error');
+            };
+
+            xhr.send(JSON.stringify({
+                session_id: currentSessionId,
+                max_font_size: parseInt(maxFontInput.value) || 80,
+                min_font_size: parseInt(minFontInput.value) || 20,
+                color_theme: colorThemeSelect.value
+            }));
+        });
+
+        // 渲染词频列表
         function renderWordFreq(wordFreq) {
             wordFreqList.innerHTML = '';
+            var items = Object.entries(wordFreq).sort(function(a, b) { return b[1] - a[1]; });
 
-            // 将字典转为数组并按频次降序排序
-            var items = Object.entries(wordFreq).sort(function(a, b) {
-                return b[1] - a[1];
-            });
-
-            // 如果没有词了，显示提示
             if (items.length === 0) {
                 wordFreqList.innerHTML = '<p class="empty-hint">所有词已被过滤</p>';
                 resultArea.style.display = 'block';
                 return;
             }
 
-            // 找到最大频次（用于计算条形宽度比例）
             var maxFreq = items[0][1];
 
-            // 生成每个词的展示条
             for (var i = 0; i < items.length; i++) {
                 var word = items[i][0];
                 var freq = items[i][1];
@@ -328,25 +348,21 @@
                 var item = document.createElement('div');
                 item.className = 'freq-item';
 
-                // 复选框
                 var checkbox = document.createElement('input');
                 checkbox.type = 'checkbox';
                 checkbox.className = 'freq-checkbox';
                 checkbox.value = word;
                 checkbox.id = 'cb-' + i;
 
-                // 词语标签（点击文字也能勾选）
                 var label = document.createElement('label');
                 label.className = 'freq-word';
                 label.textContent = word;
                 label.setAttribute('for', 'cb-' + i);
 
-                // 频次条形（宽度按比例计算）
                 var bar = document.createElement('div');
                 bar.className = 'freq-bar';
                 bar.style.width = Math.max(freq / maxFreq * 100, 5) + '%';
 
-                // 频次数字
                 var count = document.createElement('span');
                 count.className = 'freq-count';
                 count.textContent = freq;
@@ -361,19 +377,12 @@
             resultArea.style.display = 'block';
         }
 
-        /**
-         * 在页面上显示提示消息。
-         *
-         * @param {string} text - 提示文字内容
-         * @param {string} type - 消息类型：'success' 显示绿色，'error' 显示红色
-         */
+        // 提示消息
         function showMessage(text, type) {
             messageBox.textContent = text;
             messageBox.className = 'message ' + type;
             messageBox.style.display = 'block';
-            setTimeout(function() {
-                messageBox.style.display = 'none';
-            }, 3000);
+            setTimeout(function() { messageBox.style.display = 'none'; }, 3000);
         }
     </script>
 </body>
