@@ -1,4 +1,4 @@
-# 中文词云工具
+# 中文词云工具（在线求星🌟）
 
 本地运行的中文词云生成工具，基于 Flask + 原生 JS（ES Modules），无前端框架、无数据库。
 
@@ -107,23 +107,23 @@ wordcloud/
 
 ### 三种颜色模式
 
-| 模式 | 说明 | 前端显示 |
-|------|------|---------|
-| `preset_gradient` | 预设渐变颜色池 | 渐变主题下拉 |
-| `auto_gradient` | 用户输入 HEX 自动生成同色系渐变 | HEX 输入框 |
-| `solid` | 单色 + 轻微亮度变化 | HEX 输入框 |
+| 模式                | 说明                 | 前端显示    |
+| ----------------- | ------------------ | ------- |
+| `preset_gradient` | 预设渐变颜色池            | 渐变主题下拉  |
+| `auto_gradient`   | 用户输入 HEX 自动生成同色系渐变 | HEX 输入框 |
+| `solid`           | 单色 + 轻微亮度变化        | HEX 输入框 |
 
 ### 预设渐变主题
 
-| 主题 | 颜色池 |
-|------|--------|
+| 主题   | 颜色池               |
+| ---- | ----------------- |
 | 蓝色渐变 | #0D47A1 → #90CAF9 |
 | 绿色渐变 | #1B5E20 → #A5D6A7 |
 | 红色渐变 | #B71C1C → #EF9A9A |
 | 紫色渐变 | #4A148C → #E1BEE7 |
 | 橙色渐变 | #E65100 → #FFCC80 |
 | 赛博朋克 | #00FFFF → #FF1493 |
-| 森林 | #1B5E20 → #AED581 |
+| 森林   | #1B5E20 → #AED581 |
 
 ### 自动渐变
 
@@ -136,27 +136,27 @@ darker      dark       base      lighter     lighter
 
 ## 布局风格
 
-| 风格 | 水平词比例 | 旋转增强 | 适用场景 |
-|------|-----------|---------|---------|
-| 经典 | 95% | 无 | 正式文档、报告 |
-| 动感 | 70% | ±30° 旋转词叠加 | 活动宣传 |
-| 海报 | 50% | ±45° 旋转词叠加 | 设计海报 |
-| 竖排混排 | 30% | 无 | 中式风格 |
+| 风格   | 水平词比例 | 旋转增强       | 适用场景    |
+| ---- | ----- | ---------- | ------- |
+| 经典   | 95%   | 无          | 正式文档、报告 |
+| 动感   | 70%   | ±30° 旋转词叠加 | 活动宣传    |
+| 海报   | 50%   | ±45° 旋转词叠加 | 设计海报    |
+| 竖排混排 | 30%   | 无          | 中式风格    |
 
 ## 字体选择
 
-| 字体 | 特性 | 适用场景 |
-|------|------|---------|
-| 微软雅黑 | 现代清晰，笔画匀称 | 通用首选 |
-| 黑体 | 粗犷有力，视觉冲击 | 标题、海报 |
-| 宋体 | 经典正式，横细竖粗 | 传统排版 |
-| 楷体 | 书法韵味，笔画流畅 | 文化风格 |
-| 仿宋 | 优雅传统，笔画秀丽 | 古典韵味 |
+| 字体   | 特性        | 适用场景  |
+| ---- | --------- | ----- |
+| 微软雅黑 | 现代清晰，笔画匀称 | 通用首选  |
+| 黑体   | 粗犷有力，视觉冲击 | 标题、海报 |
+| 宋体   | 经典正式，横细竖粗 | 传统排版  |
+| 楷体   | 书法韵味，笔画流畅 | 文化风格  |
+| 仿宋   | 优雅传统，笔画秀丽 | 古典韵味  |
 
 ## 灰度图片处理
 
 1. 上传图片 → 自动预览
-2. 调整灰度阈值（0~255）→ 点击"生成灰度图片"
+2. 调整灰度阈值（0\~255）→ 点击"生成灰度图片"
 3. 灰度预览区显示结果，提示"词云将在黑色部分生成"
 4. 可选"灰度反转"翻转黑白区域
 5. 点击"生成形状词云"→ 词云按灰度图形状生成
@@ -164,31 +164,31 @@ darker      dark       base      lighter     lighter
 
 ## API 接口
 
-| 路由 | 方法 | 功能 |
-|------|------|------|
-| `GET /` | GET | 返回首页 |
-| `POST /upload_txt` | POST | 上传 txt 文件 |
-| `POST /process_text` | POST | 文件分词，返回词频 |
-| `POST /process_text_input` | POST | 直接输入文本分词 |
-| `POST /cache_word_freq` | POST | 缓存词频到内存 |
-| `POST /filter_words` | POST | 过滤指定词 |
-| `POST /generate_wordcloud` | POST | 生成词云 |
-| `POST /upload_mask_image` | POST | 上传图片 |
-| `POST /generate_grayscale` | POST | 生成灰度图片 |
-| `POST /invert_grayscale` | POST | 灰度反转 |
-| `POST /generate_mask_wordcloud` | POST | 生成形状词云 |
-| `GET /outputs/<filename>` | GET | 访问词云图片 |
-| `GET /masks/<filename>` | GET | 访问上传图片 |
-| `GET /download_image/<filename>` | GET | 下载词云图片 |
-| `POST /save_history` | POST | 保存历史记录 |
-| `GET /history_list` | GET | 获取历史记录列表 |
-| `POST /load_history` | POST | 加载历史记录 |
-| `POST /delete_history` | POST | 删除历史记录 |
-| `POST /clear_all_history` | POST | 清空历史记录 |
-| `GET /storage_info` | GET | 获取存储信息 |
-| `POST /clean_uploads` | POST | 清理上传文件 |
-| `POST /clean_outputs` | POST | 清理词云图片 |
-| `POST /clean_masks` | POST | 清理灰度图片 |
+| 路由                               | 方法   | 功能        |
+| -------------------------------- | ---- | --------- |
+| `GET /`                          | GET  | 返回首页      |
+| `POST /upload_txt`               | POST | 上传 txt 文件 |
+| `POST /process_text`             | POST | 文件分词，返回词频 |
+| `POST /process_text_input`       | POST | 直接输入文本分词  |
+| `POST /cache_word_freq`          | POST | 缓存词频到内存   |
+| `POST /filter_words`             | POST | 过滤指定词     |
+| `POST /generate_wordcloud`       | POST | 生成词云      |
+| `POST /upload_mask_image`        | POST | 上传图片      |
+| `POST /generate_grayscale`       | POST | 生成灰度图片    |
+| `POST /invert_grayscale`         | POST | 灰度反转      |
+| `POST /generate_mask_wordcloud`  | POST | 生成形状词云    |
+| `GET /outputs/<filename>`        | GET  | 访问词云图片    |
+| `GET /masks/<filename>`          | GET  | 访问上传图片    |
+| `GET /download_image/<filename>` | GET  | 下载词云图片    |
+| `POST /save_history`             | POST | 保存历史记录    |
+| `GET /history_list`              | GET  | 获取历史记录列表  |
+| `POST /load_history`             | POST | 加载历史记录    |
+| `POST /delete_history`           | POST | 删除历史记录    |
+| `POST /clear_all_history`        | POST | 清空历史记录    |
+| `GET /storage_info`              | GET  | 获取存储信息    |
+| `POST /clean_uploads`            | POST | 清理上传文件    |
+| `POST /clean_outputs`            | POST | 清理词云图片    |
+| `POST /clean_masks`              | POST | 清理灰度图片    |
 
 ## 技术栈
 
@@ -211,3 +211,7 @@ numpy>=1.24
 ## 许可
 
 MIT
+
+## 以下是我个人想说的话（碎碎念）
+
+这是我的第一个 AI Coding 项目，可能在别人看来非常的简陋，甚至于说很简单，但我确实是代码基础不是很好的人，我的专业不是软件工程，这个工具原本只是出自于对现今 AI 大模型代码能力的好奇，全部代码均由 GLM-5.1 编写，但对我来说，我觉得已经是一个很大的进步了，因为我确实在一步一步弄清楚我的需求，逐渐搭建起这个小小项目，希望对你有帮助，希望你能喜欢🌹
