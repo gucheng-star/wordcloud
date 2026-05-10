@@ -98,18 +98,46 @@
             </div>
             <div class="cloud-params color-params">
                 <div class="param-row">
-                    <label class="param-label" for="color-theme">颜色主题</label>
-                    <select id="color-theme" class="param-select">
-                        <option value="blue">蓝色</option>
-                        <option value="green">绿色</option>
-                        <option value="red">红色</option>
-                        <option value="purple">紫色</option>
-                        <option value="random">随机彩色</option>
-                        <option value="custom">自定义颜色</option>
+                    <label class="param-label" for="font-family">字体</label>
+                    <select id="font-family" class="param-select">
+                        <option value="yahei">微软雅黑</option>
+                        <option value="simhei">黑体</option>
+                        <option value="simsun">宋体</option>
+                        <option value="simkai">楷体</option>
+                        <option value="simfang">仿宋</option>
+                    </select>
+                </div>
+                <div class="param-row">
+                    <label class="param-label" for="layout-style">布局风格</label>
+                    <select id="layout-style" class="param-select">
+                        <option value="classic">经典</option>
+                        <option value="dynamic">动感</option>
+                        <option value="poster">海报</option>
+                        <option value="vertical_mix">竖排混排</option>
+                    </select>
+                </div>
+                <div class="param-row">
+                    <label class="param-label" for="color-mode">颜色模式</label>
+                    <select id="color-mode" class="param-select">
+                        <option value="preset_gradient">预设渐变</option>
+                        <option value="auto_gradient">自定义渐变</option>
+                        <option value="solid">单色</option>
+                    </select>
+                </div>
+                <div class="param-row" id="gradient-theme-row">
+                    <label class="param-label" for="gradient-theme">渐变主题</label>
+                    <select id="gradient-theme" class="param-select">
+                        <option value="blue_gradient">蓝色渐变</option>
+                        <option value="green_gradient">绿色渐变</option>
+                        <option value="red_gradient">红色渐变</option>
+                        <option value="purple_gradient">紫色渐变</option>
+                        <option value="orange_gradient">橙色渐变</option>
+                        <option value="cyberpunk_gradient">赛博朋克</option>
+                        <option value="forest_gradient">森林</option>
                     </select>
                 </div>
                 <div class="param-row color-hex-row" id="color-hex-row" style="display:none;">
-                    <label class="param-label" for="color-hex">自定义色</label>
+                    <label class="param-label" for="color-hex">基色</label>
                     <div class="color-hex-group">
                         <input type="color" id="color-picker" class="color-picker" value="#3366ff">
                         <input type="text" id="color-hex" class="param-input color-hex-input" placeholder="#3366ff" maxlength="7">
@@ -182,7 +210,7 @@
             <div class="manage-actions">
                 <button type="button" id="clean-uploads-btn" class="btn-manage">清理上传文件</button>
                 <button type="button" id="clean-outputs-btn" class="btn-manage">清理词云图片</button>
-                <button type="button" id="clean-masks-btn" class="btn-manage">清理Mask图片</button>
+                <button type="button" id="clean-masks-btn" class="btn-manage">清理灰度图片</button>
             </div>
         </div>
 

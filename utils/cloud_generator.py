@@ -5,64 +5,116 @@ cloud_generator.py - 词云图生成模块
 功能:
     1. 根据词频字典生成词云 PNG 图片
     2. 自动检测系统中文字体（不依赖前端传 font_path）
-    3. 支持多种颜色模式：HEX 自定义色、预设主题、随机彩色
+    3. 支持三种颜色模式：solid / preset_gradient / auto_gradient
     4. 支持自定义最大/最小字号
     5. 支持自定义词云宽高（分辨率）
+    6. 支持布局风格：classic / dynamic / poster / vertical_mix
 """
 
 import os
 import random
-import re
 from wordcloud import WordCloud
-import matplotlib.cm as cm
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
+
+from utils.color_manager import (
+    is_valid_hex,
+    resolve_color_config,
+    get_random_pool_color,
+)
 
 
-# ========== 字体路径自动检测 ==========
+FONT_FAMILIES = {
+    'yahei': {
+        'label': '微软雅黑',
+        'css_name': 'Microsoft YaHei',
+        'windows_path': 'C:/Windows/Fonts/msyh.ttc',
+        'linux_paths': [
+            '/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc',
+            '/usr/share/fonts/truetype/wqy/wqy-microhei.ttc',
+        ],
+        'description': '现代清晰，通用首选',
+    },
+    'simhei': {
+        'label': '黑体',
+        'css_name': 'SimHei',
+        'windows_path': 'C:/Windows/Fonts/simhei.ttf',
+        'linux_paths': [],
+        'description': '粗犷有力，标题海报',
+    },
+    'simsun': {
+        'label': '宋体',
+        'css_name': 'SimSun',
+        'windows_path': 'C:/Windows/Fonts/simsun.ttc',
+        'linux_paths': [],
+        'description': '经典正式，传统排版',
+    },
+    'simkai': {
+        'label': '楷体',
+        'css_name': 'KaiTi',
+        'windows_path': 'C:/Windows/Fonts/simkai.ttf',
+        'linux_paths': [],
+        'description': '书法艺术，文化风格',
+    },
+    'simfang': {
+        'label': '仿宋',
+        'css_name': 'FangSong',
+        'windows_path': 'C:/Windows/Fonts/simfang.ttf',
+        'linux_paths': [],
+        'description': '优雅传统，古典韵味',
+    },
+}
 
-def get_chinese_font_path():
+VALID_FONT_FAMILIES = list(FONT_FAMILIES.keys())
+
+LINUX_FALLBACK_PATHS = [
+    '/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc',
+    '/usr/share/fonts/truetype/wqy/wqy-microhei.ttc',
+    '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc',
+    '/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf',
+]
+
+
+def resolve_font_path(font_family='yahei'):
     """
-    自动检测系统中文字体路径。
+    根据字体族名称解析字体文件路径。
 
-    检测顺序:
-        1. Windows: C:/Windows/Fonts/msyh.ttc（微软雅黑）
-        2. Linux: 常见中文字体路径
+    优先使用指定字体，找不到时按优先级回退。
+
+    参数:
+        font_family: 字体族键名，如 'yahei'、'simhei'
 
     返回:
         str: 字体文件路径，如果找不到则返回 None
     """
-    windows_fonts = [
-        'C:/Windows/Fonts/msyh.ttc',
-        'C:/Windows/Fonts/msyhbd.ttc',
-        'C:/Windows/Fonts/simhei.ttf',
-        'C:/Windows/Fonts/simsun.ttc',
-    ]
+    font_config = FONT_FAMILIES.get(font_family)
+    if font_config:
+        if os.path.exists(font_config['windows_path']):
+            return font_config['windows_path']
+        for linux_path in font_config.get('linux_paths', []):
+            if os.path.exists(linux_path):
+                return linux_path
 
-    linux_fonts = [
-        '/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc',
-        '/usr/share/fonts/truetype/wqy/wqy-microhei.ttc',
-        '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc',
-        '/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf',
-    ]
+    for fallback in LINUX_FALLBACK_PATHS:
+        if os.path.exists(fallback):
+            return fallback
 
-    for font_path in windows_fonts + linux_fonts:
-        if os.path.exists(font_path):
-            return font_path
+    for key in FONT_FAMILIES:
+        wp = FONT_FAMILIES[key]['windows_path']
+        if os.path.exists(wp):
+            return wp
 
     return None
 
 
-# ========== 颜色主题 ==========
+def get_chinese_font_path():
+    """
+    自动检测系统中文字体路径（默认微软雅黑）。
 
-COLOR_THEMES = {
-    'blue': 'Blues',
-    'green': 'Greens',
-    'red': 'Reds',
-    'purple': 'Purples',
-}
-
-VALID_THEMES = list(COLOR_THEMES.keys()) + ['random']
+    返回:
+        str: 字体文件路径，如果找不到则返回 None
+    """
+    return resolve_font_path('yahei')
 
 
 LAYOUT_STYLES = {
@@ -97,116 +149,18 @@ def resolve_layout_config(layout_style):
     config = LAYOUT_STYLES[layout_style]
     return {
         'prefer_horizontal': config['prefer_horizontal'],
-        'rotate_steps': config['rotate_steps'],
+        'rotate_steps': config.get('rotate_steps', 2),
     }
 
 
-def is_valid_hex(hex_str):
-    """
-    校验 HEX 颜色字符串是否合法。
-
-    支持格式: #RGB 或 #RRGGBB（不区分大小写）
-
-    返回:
-        bool
-    """
-    if not hex_str:
-        return False
-    return bool(re.match(r'^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$', hex_str))
-
-
-def hex_to_rgb(hex_str):
-    """
-    将 HEX 颜色字符串转换为 (R, G, B) 元组。
-
-    参数:
-        hex_str: 如 '#ff0000' 或 '#f00'
-
-    返回:
-        tuple: (R, G, B)，每个值 0-255
-    """
-    hex_str = hex_str.lstrip('#')
-    if not is_valid_hex('#' + hex_str):
-        raise ValueError(f'无效的 HEX 颜色格式: #{hex_str}，正确格式如 #ff0000 或 #f00')
-    if len(hex_str) == 3:
-        hex_str = ''.join([c * 2 for c in hex_str])
-    return tuple(int(hex_str[i:i + 2], 16) for i in (0, 2, 4))
-
-
-def hex_color_func(hex_str):
-    """
-    基于 HEX 颜色生成 color_func 闭包。
-
-    效果: 以 HEX 颜色为主色调，添加轻微透明度/亮度变化，
-    让词云看起来有层次感而不是完全同色。
-
-    参数:
-        hex_str: HEX 颜色字符串，如 '#3366ff'
-
-    返回:
-        callable: 可传给 WordCloud(color_func=...) 的函数
-    """
-    r, g, b = hex_to_rgb(hex_str)
-
-    def _color_func(word, font_size, position, orientation,
-                    random_state=None, **kwargs):
-        factor = random.uniform(0.7, 1.0)
-        nr = min(255, int(r * factor))
-        ng = min(255, int(g * factor))
-        nb = min(255, int(b * factor))
-        return f'rgb({nr}, {ng}, {nb})'
-
-    return _color_func
-
-
-def random_color_func(word, font_size, position, orientation,
-                      random_state=None, **kwargs):
-    """
-    随机颜色函数，用于 WordCloud 的 color_func 参数。
-
-    生成随机的 RGB 颜色，确保颜色鲜艳（避免太暗或太亮）。
-    """
-    r = random.randint(50, 230)
-    g = random.randint(50, 230)
-    b = random.randint(50, 230)
-    return f'rgb({r}, {g}, {b})'
-
-
-def resolve_color_config(color_theme, color_hex):
-    """
-    根据颜色主题和 HEX 输入，解析出最终的词云颜色配置。
-
-    优先级:
-        1. 如果 color_hex 非空且合法 → 使用 HEX 自定义色
-        2. 如果 color_theme 为 'random' → 随机颜色
-        3. 如果 color_theme 为预设主题 → 使用 colormap
-
-    参数:
-        color_theme: 预设主题名称
-        color_hex: HEX 颜色字符串（可为空）
-
-    返回:
-        dict: 包含 colormap 或 color_func 的配置字典
-    """
-    if color_hex and is_valid_hex(color_hex):
-        return {'color_func': hex_color_func(color_hex)}
-
-    if color_theme == 'random':
-        return {'color_func': random_color_func}
-
-    if color_theme in COLOR_THEMES:
-        return {'colormap': COLOR_THEMES[color_theme]}
-
-    return {'colormap': 'Blues'}
-
-
-# ========== 词云生成主函数 ==========
-
 def generate_wordcloud(word_freq, output_path,
                        max_font_size=80, min_font_size=20,
-                       color_theme='blue', color_hex='',
+                       color_mode='preset_gradient',
+                       gradient_theme='blue_gradient',
+                       base_color='#3366ff',
                        width=800, height=600,
-                       mask=None):
+                       mask=None, layout_style='classic',
+                       font_family='yahei'):
     """
     根据词频字典生成词云图片并保存。
 
@@ -215,11 +169,14 @@ def generate_wordcloud(word_freq, output_path,
         output_path: 输出图片的绝对路径
         max_font_size: 最大字号，默认 80
         min_font_size: 最小字号，默认 20
-        color_theme: 颜色主题，默认 'blue'
-        color_hex: HEX 自定义颜色，如 '#3366ff'，优先于 color_theme
+        color_mode: 颜色模式，'solid' / 'preset_gradient' / 'auto_gradient'
+        gradient_theme: 预设渐变主题，如 'blue_gradient'
+        base_color: HEX 基色，如 '#3366ff'
         width: 词云图片宽度（像素），默认 800
         height: 词云图片高度（像素），默认 600
         mask: numpy 数组形式的 mask，如果提供则忽略 width/height
+        layout_style: 布局风格，可选 classic/dynamic/poster/vertical_mix
+        font_family: 字体族，可选 yahei/simhei/simsun/simkai/simfang
 
     返回:
         str: 生成的图片文件名
@@ -231,14 +188,16 @@ def generate_wordcloud(word_freq, output_path,
     if not word_freq:
         raise ValueError('词频数据为空，无法生成词云')
 
-    if color_hex and not is_valid_hex(color_hex):
-        raise ValueError(f'HEX 颜色格式不合法: {color_hex}，正确格式如 #ff0000 或 #f00')
+    if base_color and not is_valid_hex(base_color):
+        raise ValueError(f'HEX 颜色格式不合法: {base_color}，正确格式如 #ff0000 或 #f00')
 
-    font_path = get_chinese_font_path()
+    font_path = resolve_font_path(font_family)
     if not font_path:
         raise RuntimeError('未找到中文字体，请安装中文字体（如微软雅黑）')
 
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
+
+    layout_config = resolve_layout_config(layout_style)
 
     wc_params = {
         'font_path': font_path,
@@ -247,6 +206,7 @@ def generate_wordcloud(word_freq, output_path,
         'min_font_size': min_font_size,
         'max_words': 200,
         'collocations': False,
+        'prefer_horizontal': layout_config['prefer_horizontal'],
     }
 
     if mask is not None:
@@ -256,14 +216,99 @@ def generate_wordcloud(word_freq, output_path,
         wc_params['width'] = width
         wc_params['height'] = height
 
-    color_config = resolve_color_config(color_theme, color_hex)
+    color_config = resolve_color_config(color_mode, gradient_theme, base_color)
     wc_params.update(color_config)
 
     wc = WordCloud(**wc_params)
     wc.generate_from_frequencies(word_freq)
     wc.to_file(output_path)
 
+    if layout_style in ('dynamic', 'poster'):
+        _add_rotated_words(output_path, word_freq, font_path,
+                           max_font_size, min_font_size,
+                           color_mode, gradient_theme, base_color,
+                           layout_style)
+
     return os.path.basename(output_path)
+
+
+def _add_rotated_words(image_path, word_freq, font_path,
+                       max_font_size, min_font_size,
+                       color_mode, gradient_theme, base_color,
+                       layout_style):
+    """
+    在已生成的词云图片上叠加额外旋转词语，增强视觉动感。
+
+    仅对 dynamic 和 poster 布局风格生效。
+    - dynamic: 少量词语以 ±30° 旋转叠加
+    - poster: 更多词语以 ±45° 旋转叠加，增加海报感
+    """
+    try:
+        img = Image.open(image_path).convert('RGBA')
+    except Exception:
+        return
+
+    sorted_words = sorted(word_freq.items(), key=lambda x: x[1], reverse=True)
+
+    if layout_style == 'dynamic':
+        word_count = min(5, len(sorted_words) // 4)
+        angles = [-30, 30, -20, 20, -15]
+    elif layout_style == 'poster':
+        word_count = min(8, len(sorted_words) // 3)
+        angles = [-45, 45, -30, 30, -60, 60, -15, 15]
+    else:
+        return
+
+    if word_count == 0:
+        return
+
+    overlay = Image.new('RGBA', img.size, (0, 0, 0, 0))
+    draw = ImageDraw.Draw(overlay)
+
+    img_w, img_h = img.size
+
+    start_idx = max(3, len(sorted_words) // 5)
+    candidates = sorted_words[start_idx:start_idx + word_count * 3]
+
+    if not candidates:
+        return
+
+    selected = candidates[:word_count]
+
+    for i, (word, freq) in enumerate(selected):
+        font_size = int(min_font_size + (max_font_size - min_font_size) * 0.3)
+        font_size = max(min_font_size, min(font_size, max_font_size // 2))
+
+        try:
+            font = ImageFont.truetype(font_path, font_size)
+        except Exception:
+            continue
+
+        color = get_random_pool_color(gradient_theme, base_color, color_mode)
+
+        angle = angles[i % len(angles)]
+
+        bbox = draw.textbbox((0, 0), word, font=font)
+        tw = bbox[2] - bbox[0]
+        th = bbox[3] - bbox[1]
+
+        margin = max(tw, th) + 10
+        x = random.randint(margin, max(margin, img_w - margin))
+        y = random.randint(margin, max(margin, img_h - margin))
+
+        word_img = Image.new('RGBA', (tw + 20, th + 20), (0, 0, 0, 0))
+        word_draw = ImageDraw.Draw(word_img)
+        word_draw.text((10 - bbox[0], 10 - bbox[1]), word, fill=color, font=font)
+
+        rotated = word_img.rotate(angle, resample=Image.BICUBIC, expand=True)
+
+        rx = x - rotated.width // 2
+        ry = y - rotated.height // 2
+
+        overlay.paste(rotated, (rx, ry), rotated)
+
+    result = Image.alpha_composite(img, overlay)
+    result.convert('RGB').save(image_path)
 
 
 def overlay_wordcloud_with_image(wordcloud_path, mask_image_path, output_path, opacity=0.3):

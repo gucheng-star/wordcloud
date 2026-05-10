@@ -56,7 +56,7 @@ export function loadStorageInfo() {
                     dom.storageInfo.innerHTML =
                         '上传文件: <strong>' + r.uploads.files + '</strong> 个 (' + r.uploads.size_kb + ' KB)' +
                         ' &nbsp;&nbsp; 词云图片: <strong>' + r.outputs.files + '</strong> 个 (' + r.outputs.size_kb + ' KB)' +
-                        ' &nbsp;&nbsp; Mask图片: <strong>' + masks.files + '</strong> 个 (' + masks.size_kb + ' KB)';
+                        ' &nbsp;&nbsp; 灰度图片: <strong>' + masks.files + '</strong> 个 (' + masks.size_kb + ' KB)';
                 } else {
                     dom.storageInfo.innerHTML = '加载失败';
                 }

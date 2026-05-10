@@ -8,6 +8,13 @@
 .param-select { flex: 1; padding: 6px 10px; border: 1px solid #bdc3c7; border-radius: 4px; font-size: 14px; background: #fff; cursor: pointer; }
 .param-select:focus { border-color: #3498db; outline: none; }
 
+#font-family { font-family: 'Microsoft YaHei', sans-serif; }
+#font-family option[value="yahei"] { font-family: 'Microsoft YaHei', sans-serif; }
+#font-family option[value="simhei"] { font-family: 'SimHei', sans-serif; }
+#font-family option[value="simsun"] { font-family: 'SimSun', serif; }
+#font-family option[value="simkai"] { font-family: 'KaiTi', serif; }
+#font-family option[value="simfang"] { font-family: 'FangSong', serif; }
+
 .cloud-buttons {
     display: flex;
     gap: 10px;

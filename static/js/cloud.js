@@ -7,24 +7,49 @@ import { updateMaskGenerateBtnState } from './mask.js';
 export function initCloud() {
     var maxFontInput = document.getElementById('max-font');
     var minFontInput = document.getElementById('min-font');
-    var colorThemeSelect = document.getElementById('color-theme');
     var cloudWidthInput = document.getElementById('cloud-width');
     var cloudHeightInput = document.getElementById('cloud-height');
+    var colorModeSelect = document.getElementById('color-mode');
+    var gradientThemeSelect = document.getElementById('gradient-theme');
+    var gradientThemeRow = document.getElementById('gradient-theme-row');
     var colorHexRow = document.getElementById('color-hex-row');
     var colorHexInput = document.getElementById('color-hex');
     var colorPicker = document.getElementById('color-picker');
     var generateBtn = document.getElementById('generate-btn');
     var maskGenerateBtn = document.getElementById('mask-generate-btn');
     var overlaySlider = document.getElementById('overlay-slider');
+    var layoutStyleSelect = document.getElementById('layout-style');
+    var fontFamilySelect = document.getElementById('font-family');
 
-    colorThemeSelect.addEventListener('change', function() {
-        if (colorThemeSelect.value === 'custom') {
+    var fontCssMap = {
+        'yahei': "'Microsoft YaHei', sans-serif",
+        'simhei': "'SimHei', sans-serif",
+        'simsun': "'SimSun', serif",
+        'simkai': "'KaiTi', serif",
+        'simfang': "'FangSong', serif"
+    };
+
+    fontFamilySelect.addEventListener('change', function() {
+        fontFamilySelect.style.fontFamily = fontCssMap[fontFamilySelect.value] || fontCssMap['yahei'];
+    });
+
+    function updateColorUI() {
+        var mode = colorModeSelect.value;
+        if (mode === 'preset_gradient') {
+            gradientThemeRow.style.display = 'flex';
+            colorHexRow.style.display = 'none';
+        } else if (mode === 'auto_gradient') {
+            gradientThemeRow.style.display = 'none';
             colorHexRow.style.display = 'flex';
         } else {
-            colorHexRow.style.display = 'none';
-            colorHexInput.value = '';
+            gradientThemeRow.style.display = 'none';
+            colorHexRow.style.display = 'flex';
         }
-    });
+    }
+
+    updateColorUI();
+
+    colorModeSelect.addEventListener('change', updateColorUI);
 
     colorPicker.addEventListener('input', function() {
         colorHexInput.value = colorPicker.value;
@@ -37,26 +62,51 @@ export function initCloud() {
         }
     });
 
+    function getColorParams() {
+        var mode = colorModeSelect.value;
+        var params = {
+            color_mode: mode,
+            gradient_theme: gradientThemeSelect.value,
+            base_color: ''
+        };
+
+        if (mode === 'solid' || mode === 'auto_gradient') {
+            var hex = colorHexInput.value.trim();
+            if (!hex) {
+                hex = colorPicker.value;
+            }
+            if (!/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(hex)) {
+                return { error: '颜色格式不正确，请输入如 #ff0000 或 #f00' };
+            }
+            params.base_color = hex;
+        }
+
+        return params;
+    }
+
     generateBtn.addEventListener('click', function() {
         if (!state.currentSessionId) { showMessage('请先进行分词分析', 'error'); return; }
+
+        var colorParams = getColorParams();
+        if (colorParams.error) {
+            showMessage(colorParams.error, 'error');
+            return;
+        }
+
         generateBtn.disabled = true;
         generateBtn.textContent = '生成中...';
-
-        var colorHex = '';
-        if (colorThemeSelect.value === 'custom') {
-            colorHex = colorHexInput.value.trim();
-            if (!colorHex) { showMessage('请输入自定义颜色（如 #3366ff）', 'error'); generateBtn.disabled = false; generateBtn.textContent = '生成词云'; return; }
-            if (!/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(colorHex)) { showMessage('颜色格式不正确，请输入如 #ff0000 或 #f00', 'error'); generateBtn.disabled = false; generateBtn.textContent = '生成词云'; return; }
-        }
 
         var params = {
             session_id: state.currentSessionId,
             max_font_size: parseInt(maxFontInput.value) || 80,
             min_font_size: parseInt(minFontInput.value) || 20,
-            color_theme: colorThemeSelect.value === 'custom' ? 'blue' : colorThemeSelect.value,
-            color_hex: colorHex,
+            color_mode: colorParams.color_mode,
+            gradient_theme: colorParams.gradient_theme,
+            base_color: colorParams.base_color,
             width: parseInt(cloudWidthInput.value) || 800,
-            height: parseInt(cloudHeightInput.value) || 600
+            height: parseInt(cloudHeightInput.value) || 600,
+            layout_style: layoutStyleSelect.value,
+            font_family: fontFamilySelect.value
         };
         postJSON('/generate_wordcloud', params, function(response) {
             generateBtn.disabled = false;
@@ -76,13 +126,14 @@ export function initCloud() {
         if (!state.currentSessionId) { showMessage('请先进行分词分析', 'error'); return; }
         if (!state.grayscaleReady || !state.grayscaleFilename) { showMessage('请先生成灰度图片', 'error'); return; }
 
+        var colorParams = getColorParams();
+        if (colorParams.error) {
+            showMessage(colorParams.error, 'error');
+            return;
+        }
+
         maskGenerateBtn.disabled = true;
         maskGenerateBtn.textContent = '生成中...';
-
-        var colorHex = '';
-        if (colorThemeSelect.value === 'custom') {
-            colorHex = colorHexInput.value.trim();
-        }
 
         var overlayOpacity = parseInt(overlaySlider.value) / 100;
 
@@ -94,8 +145,11 @@ export function initCloud() {
             overlay_opacity: overlayOpacity,
             max_font_size: parseInt(maxFontInput.value) || 80,
             min_font_size: parseInt(minFontInput.value) || 20,
-            color_theme: colorThemeSelect.value === 'custom' ? 'blue' : colorThemeSelect.value,
-            color_hex: colorHex
+            color_mode: colorParams.color_mode,
+            gradient_theme: colorParams.gradient_theme,
+            base_color: colorParams.base_color,
+            layout_style: layoutStyleSelect.value,
+            font_family: fontFamilySelect.value
         };
 
         postJSON('/generate_mask_wordcloud', params, function(response) {
@@ -129,10 +183,13 @@ function saveCurrentHistory(params) {
         params: {
             max_font_size: params.max_font_size,
             min_font_size: params.min_font_size,
-            color_theme: params.color_theme,
-            color_hex: params.color_hex || '',
+            color_mode: params.color_mode || 'preset_gradient',
+            gradient_theme: params.gradient_theme || 'blue_gradient',
+            base_color: params.base_color || '',
             width: params.width,
-            height: params.height
+            height: params.height,
+            layout_style: params.layout_style || 'classic',
+            font_family: params.font_family || 'yahei'
         },
         filename: state.currentOriginalName || state.currentFilename
     }, function(response) { if (response.status === 'success') loadHistoryList(); });

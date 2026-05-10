@@ -83,7 +83,8 @@ from flask import Flask, render_template, request, jsonify, send_from_directory
 from werkzeug.utils import secure_filename
 from utils.text_processor import process_file, process_text_string
 from utils.filter_processor import filter_word_freq
-from utils.cloud_generator import generate_wordcloud, overlay_wordcloud_with_image, VALID_THEMES
+from utils.cloud_generator import generate_wordcloud, overlay_wordcloud_with_image, VALID_LAYOUT_STYLES, VALID_FONT_FAMILIES
+from utils.color_manager import VALID_COLOR_MODES, VALID_GRADIENT_THEMES, is_valid_hex, validate_color_params
 from utils.mask_processor import generate_mask, is_allowed_image, get_mask_preview_info, generate_grayscale_image, invert_grayscale_image, validate_threshold
 from utils.history_manager import save_history, load_history, delete_history, get_history_by_id, clear_all_history
 
@@ -302,10 +303,12 @@ def generate_wordcloud_route():
             "session_id": "abc123",
             "max_font_size": 80,
             "min_font_size": 20,
-            "color_theme": "blue",
-            "color_hex": "#3366ff",
+            "color_mode": "preset_gradient",
+            "gradient_theme": "blue_gradient",
+            "base_color": "#3366ff",
             "width": 800,
-            "height": 600
+            "height": 600,
+            "layout_style": "classic"
         }
 
     返回 JSON:
@@ -329,10 +332,13 @@ def generate_wordcloud_route():
 
     max_font_size = data.get('max_font_size', 80)
     min_font_size = data.get('min_font_size', 20)
-    color_theme = data.get('color_theme', 'blue')
-    color_hex = data.get('color_hex', '')
+    color_mode = data.get('color_mode', 'preset_gradient')
+    gradient_theme = data.get('gradient_theme', 'blue_gradient')
+    base_color = data.get('base_color', '')
     width = data.get('width', 800)
     height = data.get('height', 600)
+    layout_style = data.get('layout_style', 'classic')
+    font_family = data.get('font_family', 'yahei')
 
     try:
         max_font_size = int(max_font_size)
@@ -345,8 +351,15 @@ def generate_wordcloud_route():
     if max_font_size < min_font_size:
         return jsonify({'status': 'error', 'message': '最大字号不能小于最小字号'})
 
-    if color_theme not in VALID_THEMES:
-        return jsonify({'status': 'error', 'message': f'不支持的颜色主题，可选：{" / ".join(VALID_THEMES)}'})
+    color_error, color_params = validate_color_params(color_mode, gradient_theme, base_color)
+    if color_error:
+        return jsonify({'status': 'error', 'message': color_error})
+    color_mode = color_params['color_mode']
+    gradient_theme = color_params['gradient_theme']
+    base_color = color_params['base_color']
+
+    if font_family not in VALID_FONT_FAMILIES:
+        font_family = 'yahei'
 
     if width < 200 or width > 4000:
         return jsonify({'status': 'error', 'message': '宽度范围：200 ~ 4000 像素'})
@@ -363,10 +376,13 @@ def generate_wordcloud_route():
             output_path=output_path,
             max_font_size=max_font_size,
             min_font_size=min_font_size,
-            color_theme=color_theme,
-            color_hex=color_hex,
+            color_mode=color_mode,
+            gradient_theme=gradient_theme,
+            base_color=base_color,
             width=width,
-            height=height
+            height=height,
+            layout_style=layout_style,
+            font_family=font_family
         )
 
         return jsonify({
@@ -565,9 +581,12 @@ def generate_mask_wordcloud_route():
     threshold = data.get('threshold', 128)
     max_font_size = data.get('max_font_size', 80)
     min_font_size = data.get('min_font_size', 20)
-    color_theme = data.get('color_theme', 'blue')
-    color_hex = data.get('color_hex', '')
+    color_mode = data.get('color_mode', 'preset_gradient')
+    gradient_theme = data.get('gradient_theme', 'blue_gradient')
+    base_color = data.get('base_color', '')
     overlay_opacity = data.get('overlay_opacity', 0)
+    layout_style = data.get('layout_style', 'classic')
+    font_family = data.get('font_family', 'yahei')
 
     threshold = validate_threshold(threshold)
 
@@ -584,8 +603,15 @@ def generate_mask_wordcloud_route():
     if max_font_size < min_font_size:
         return jsonify({'status': 'error', 'message': '最大字号不能小于最小字号'})
 
-    if color_theme not in VALID_THEMES:
-        return jsonify({'status': 'error', 'message': f'不支持的颜色主题，可选：{" / ".join(VALID_THEMES)}'})
+    color_error, color_params = validate_color_params(color_mode, gradient_theme, base_color)
+    if color_error:
+        return jsonify({'status': 'error', 'message': color_error})
+    color_mode = color_params['color_mode']
+    gradient_theme = color_params['gradient_theme']
+    base_color = color_params['base_color']
+
+    if font_family not in VALID_FONT_FAMILIES:
+        font_family = 'yahei'
 
     try:
         mask = generate_mask(mask_path, threshold)
@@ -601,9 +627,12 @@ def generate_mask_wordcloud_route():
             output_path=output_path,
             max_font_size=max_font_size,
             min_font_size=min_font_size,
-            color_theme=color_theme,
-            color_hex=color_hex,
-            mask=mask
+            color_mode=color_mode,
+            gradient_theme=gradient_theme,
+            base_color=base_color,
+            mask=mask,
+            layout_style=layout_style,
+            font_family=font_family
         )
 
         if overlay_opacity > 0:

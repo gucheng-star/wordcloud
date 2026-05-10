@@ -88,30 +88,7 @@ function regenerateFromHistory(recordId) {
             renderWordFreq(state.currentOriginalWordFreq, state.currentRemovedWords);
             dom.cloudResult.style.display = 'none';
 
-            var maxFontInput = document.getElementById('max-font');
-            var minFontInput = document.getElementById('min-font');
-            var cloudWidthInput = document.getElementById('cloud-width');
-            var cloudHeightInput = document.getElementById('cloud-height');
-            var colorThemeSelect = document.getElementById('color-theme');
-            var colorHexInput = document.getElementById('color-hex');
-            var colorPicker = document.getElementById('color-picker');
-            var colorHexRow = document.getElementById('color-hex-row');
-
-            maxFontInput.value = params.max_font_size || 80;
-            minFontInput.value = params.min_font_size || 20;
-            cloudWidthInput.value = params.width || 800;
-            cloudHeightInput.value = params.height || 600;
-
-            if (params.color_hex) {
-                colorThemeSelect.value = 'custom';
-                colorHexInput.value = params.color_hex;
-                colorPicker.value = params.color_hex;
-                colorHexRow.style.display = 'flex';
-            } else {
-                colorThemeSelect.value = params.color_theme || 'blue';
-                colorHexInput.value = '';
-                colorHexRow.style.display = 'none';
-            }
+            restoreParamsToUI(params);
 
             postJSON('/cache_word_freq', { word_freq: wordFreq }, function(resp) {
                 if (resp.status === 'success') {
@@ -122,6 +99,94 @@ function regenerateFromHistory(recordId) {
             });
         } else { showMessage(response.message, 'error'); }
     });
+}
+
+function restoreParamsToUI(params) {
+    var maxFontInput = document.getElementById('max-font');
+    var minFontInput = document.getElementById('min-font');
+    var cloudWidthInput = document.getElementById('cloud-width');
+    var cloudHeightInput = document.getElementById('cloud-height');
+    var colorModeSelect = document.getElementById('color-mode');
+    var gradientThemeSelect = document.getElementById('gradient-theme');
+    var gradientThemeRow = document.getElementById('gradient-theme-row');
+    var colorHexInput = document.getElementById('color-hex');
+    var colorPicker = document.getElementById('color-picker');
+    var colorHexRow = document.getElementById('color-hex-row');
+    var layoutStyleSelect = document.getElementById('layout-style');
+    var fontFamilySelect = document.getElementById('font-family');
+
+    maxFontInput.value = params.max_font_size || 80;
+    minFontInput.value = params.min_font_size || 20;
+    cloudWidthInput.value = params.width || 800;
+    cloudHeightInput.value = params.height || 600;
+
+    if (layoutStyleSelect) {
+        layoutStyleSelect.value = params.layout_style || 'classic';
+    }
+
+    if (fontFamilySelect && params.font_family) {
+        fontFamilySelect.value = params.font_family;
+        var fontCssMap = {
+            'yahei': "'Microsoft YaHei', sans-serif",
+            'simhei': "'SimHei', sans-serif",
+            'simsun': "'SimSun', serif",
+            'simkai': "'KaiTi', serif",
+            'simfang': "'FangSong', serif"
+        };
+        fontFamilySelect.style.fontFamily = fontCssMap[params.font_family] || fontCssMap['yahei'];
+    }
+
+    var colorMode = params.color_mode || '';
+    var baseColor = params.base_color || params.color_hex || '';
+
+    if (colorMode === 'solid') {
+        colorModeSelect.value = 'solid';
+        gradientThemeRow.style.display = 'none';
+        colorHexRow.style.display = 'flex';
+        if (baseColor) {
+            colorHexInput.value = baseColor;
+            colorPicker.value = baseColor;
+        }
+    } else if (colorMode === 'auto_gradient') {
+        colorModeSelect.value = 'auto_gradient';
+        gradientThemeRow.style.display = 'none';
+        colorHexRow.style.display = 'flex';
+        if (baseColor) {
+            colorHexInput.value = baseColor;
+            colorPicker.value = baseColor;
+        }
+    } else if (colorMode === 'preset_gradient') {
+        colorModeSelect.value = 'preset_gradient';
+        gradientThemeRow.style.display = 'flex';
+        colorHexRow.style.display = 'none';
+        if (params.gradient_theme && gradientThemeSelect) {
+            gradientThemeSelect.value = params.gradient_theme;
+        }
+    } else if (params.color_hex) {
+        colorModeSelect.value = 'solid';
+        gradientThemeRow.style.display = 'none';
+        colorHexRow.style.display = 'flex';
+        colorHexInput.value = params.color_hex;
+        colorPicker.value = params.color_hex;
+    } else if (params.color_theme) {
+        colorModeSelect.value = 'preset_gradient';
+        gradientThemeRow.style.display = 'flex';
+        colorHexRow.style.display = 'none';
+        var themeMap = {
+            'blue': 'blue_gradient',
+            'green': 'green_gradient',
+            'red': 'red_gradient',
+            'purple': 'purple_gradient',
+            'random': 'cyberpunk_gradient',
+        };
+        if (gradientThemeSelect) {
+            gradientThemeSelect.value = themeMap[params.color_theme] || 'blue_gradient';
+        }
+    } else {
+        colorModeSelect.value = 'preset_gradient';
+        gradientThemeRow.style.display = 'flex';
+        colorHexRow.style.display = 'none';
+    }
 }
 
 function deleteHistoryRecord(recordId) {
